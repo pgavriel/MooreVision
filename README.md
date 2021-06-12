@@ -7,7 +7,8 @@ The goal of this experiement is to see whether a machine learning model could be
 ### To run    
 Simply run the VisionBeta.py script.   
 
-### Controls   
+### Controls 
+1,2 - Cycle through loaded images. (By default there's a few)     
 W,A,S,D - Will move the Focus around within the image.   
 E - Toggle whether the Focus follows the mouse around the image.   
 R,F - Change the size of the Focus.   
