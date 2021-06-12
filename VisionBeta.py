@@ -34,8 +34,11 @@ f.set_size(init_size)
 # Create OpenCV Window
 cv.namedWindow("VisionBeta",cv.WINDOW_AUTOSIZE)
 # cv.createTrackbar('Scale', "VisionBeta", 50, 1000, slider_change)
-follow_mouse = True
-cv.setMouseCallback("VisionBeta",mouse_call)
+follow_mouse = False
+if follow_mouse:
+    cv.setMouseCallback("VisionBeta",mouse_call)
+else:
+    cv.setMouseCallback("VisionBeta",mouse_off)
 
 size_inc = 10
 move_inc = 10

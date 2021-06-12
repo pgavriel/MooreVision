@@ -31,7 +31,7 @@ class Focus:
         self.draw_curve = True
         self.draw_border = True
         self.draw_readout = True
-        self.readout_full_memory = False #True: Draw whole memory, False: Instantaneous Reading
+        self.readout_full_memory = True #True: Draw whole memory, False: Instantaneous Reading
 
     def set_iter(self, iter):
         self.iterations = max(iter,1)
