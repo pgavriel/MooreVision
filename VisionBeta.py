@@ -13,18 +13,19 @@ def mouse_off(event,x,y,flags,param):
     pass
 
 def slider_change(value):
-    global f 
+    global f
     f.set_size(value)
 
 
 # Assemble list of image files
-img_list = ['img/test1.jpg','img/cal2.jpeg','img/cal5.jpg','img/scape1.jpg','img/scape2.jpg','img/fall.jpg','img/test2.jpg']
-img_num = 5
-img = cv.imread(cv.samples.findFile(img_list[img_num]))
+img_list = ['img/test1.jpg','img/scape2.jpg','img/cal5.jpg','img/scape1.jpg','img/cal2.jpeg','img/fall.jpg','img/test2.jpg']
+img_num = 0
+#img = cv.imread(cv.samples.findFile(img_list[img_num]))
+img = cv.imread(img_list[img_num])
 
 # Initial Focus Settings
 pos = [img.shape[1]//2, img.shape[0]//2]
-iterations = 5
+iterations = 4
 init_size = 300
 
 # Create Focus Object
@@ -42,11 +43,11 @@ else:
 
 size_inc = 10
 move_inc = 10
-delay = 20  #ms
+delay = 25  #ms
 running = True
 while running:
     t_start = time.time()
-    
+
     curve_img = f.draw(img)
     cv.imshow("VisionBeta",curve_img)
     #cv.imshow("vis_mem",f.mem_vis)
@@ -56,13 +57,13 @@ while running:
     # Switch Image
     if k == ord('1'):
         img_num = img_num - 1
-        img_num = img_num % len(img_list) 
-        img = cv.imread(cv.samples.findFile(img_list[img_num]))
+        img_num = img_num % len(img_list)
+        img = cv.imread(img_list[img_num])
         f.move_to(f.pos)
     if k == ord('2'):
         img_num = img_num + 1
-        img_num = img_num % len(img_list) 
-        img = cv.imread(cv.samples.findFile(img_list[img_num]))
+        img_num = img_num % len(img_list)
+        img = cv.imread(img_list[img_num])
         f.move_to(f.pos)
 
     # Change Focus Scale
@@ -106,4 +107,3 @@ while running:
     t_elaps = int((time.time() - t_start)*1000)
     #print("\n\n\n\n\n\n\n\n\n\n\n\n")
     print("\n\n\n\n\n\n\n\n\n\n\n\n"+str(f)+"LOOP TIME: {}ms".format(t_elaps))
-
