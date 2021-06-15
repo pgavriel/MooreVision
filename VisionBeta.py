@@ -19,7 +19,7 @@ def slider_change(value):
 
 # Assemble list of image files
 img_list = ['img/test3.jpg','img/test1.jpg','img/scape2.jpg','img/cal5.jpg','img/scape1.jpg','img/cal2.jpeg','img/fall.jpg','img/test2.jpg']
-img_num = 2
+img_num = 0
 #img = cv.imread(cv.samples.findFile(img_list[img_num]))
 img = cv.imread(img_list[img_num])
 
