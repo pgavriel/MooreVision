@@ -27,11 +27,13 @@ class Focus:
         self.memory = mem
         self.mem_vis = np.zeros((self.memory,len(self.coords),3))
         self.mem_mov = np.zeros((self.memory,3,3)) # (Vert, Hori, Size)
+        #self.recon = np.zeroes((self.size,self.size,3))
 
         self.draw_center = True
         self.draw_curve = True
         self.draw_border = True
         self.draw_readout = True
+        # self.reconstruct_image = True
         self.readout_full_memory = True #True: Draw whole memory, False: Instantaneous Reading
 
     def set_iter(self, iter):
@@ -67,6 +69,8 @@ class Focus:
     def draw(self, image):
         img = image.copy()
         self.image_size = [img.shape[1],img.shape[0]]
+
+        
 
         curve_color = (200,200,200)
         color2 = (0,0,255)
@@ -114,7 +118,7 @@ class Focus:
 
         if self.draw_readout:
             img = self.add_readout(img)
-
+        # print(self.mem_vis[0])
         self.move_to(self.pos)
         self.set_size(self.size)
 
@@ -143,13 +147,31 @@ class Focus:
         if self.pos[0] > self.image_size[0]-self.size//2: self.pos[0] = self.image_size[0]-self.size//2
         if self.pos[1] > self.image_size[1]-self.size//2: self.pos[1] = self.image_size[1]-self.size//2
 
+    # Reconstruct a human inspectable image based on coordinates and color in memory
+    # The reconstruction represents what level of detail the focus is capable of distinguishing
+    def reconstruct(self,filter=None):
+        coords = self.coords
+        ks = self.k_size
+
+        recon_img = np.zeros((self.size,self.size,3),dtype=np.uint8)
+        painter = np.zeros((ks*2,ks*2,3),dtype=np.uint8)
+
+        for i in range(0,len(self.coords)):
+            avgcolor = self.mem_vis[0][i]
+            painter[:,:] = avgcolor
+            off = self.size//2
+            x1 = int(coords[i][0]*self.scale+off)
+            y1 = int(coords[i][1]*self.scale+off)
+            try:
+                recon_img[y1-ks:y1+ks,x1-ks:x1+ks] = painter
+            except:
+                recon_img[y1,x1] = avgcolor
+
+        return recon_img
+
     def __str__(self):
         s = "FOCUS INFO -- \n"
         s += "Iter:{}\tPoints:{}\tMem:{}\n".format(self.iterations,len(self.coords),self.memory)
         s += "LPos:{}\tLSize:{}\n".format(self.last_pos,self.last_size)
         s += " Pos:{}\t Size:{}\tScale:{}\tKSize:{}\n".format(self.pos,self.size,self.scale,self.k_size)
         return s
-        # print("FOCUS INFO -- ")
-        # print("Iter:{}\tPoints:{}\tMem:{}".format(self.iterations,len(self.coords),self.memory))
-        # print("LPos:{}\tLSize:{}".format(self.last_pos,self.last_size))
-        # print("Pos:{}\tSize:{}\tScale:{}\tKSize:{}".format(self.pos,self.size,self.scale,self.k_size))

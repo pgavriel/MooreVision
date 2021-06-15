@@ -18,15 +18,15 @@ def slider_change(value):
 
 
 # Assemble list of image files
-img_list = ['img/test1.jpg','img/scape2.jpg','img/cal5.jpg','img/scape1.jpg','img/cal2.jpeg','img/fall.jpg','img/test2.jpg']
-img_num = 0
+img_list = ['img/test3.jpg','img/test1.jpg','img/scape2.jpg','img/cal5.jpg','img/scape1.jpg','img/cal2.jpeg','img/fall.jpg','img/test2.jpg']
+img_num = 2
 #img = cv.imread(cv.samples.findFile(img_list[img_num]))
 img = cv.imread(img_list[img_num])
 
 # Initial Focus Settings
 pos = [img.shape[1]//2, img.shape[0]//2]
-iterations = 4
-init_size = 300
+iterations = 5
+init_size = 320
 
 # Create Focus Object
 f = Focus(iter=iterations,pos=pos,mem=100)
@@ -40,16 +40,22 @@ if follow_mouse:
     cv.setMouseCallback("VisionBeta",mouse_call)
 else:
     cv.setMouseCallback("VisionBeta",mouse_off)
+reconstruct = True
+
 
 size_inc = 10
 move_inc = 10
-delay = 25  #ms
+delay = 50 #ms
 running = True
 while running:
     t_start = time.time()
 
     curve_img = f.draw(img)
     cv.imshow("VisionBeta",curve_img)
+    if reconstruct:
+        recon_img = f.reconstruct()
+        cv.imshow("Reconstruction",recon_img)
+    
     #cv.imshow("vis_mem",f.mem_vis)
 
     k = cv.waitKey(delay) & 0xFF
@@ -100,10 +106,17 @@ while running:
     if k == ord('*') or k == ord('t'):
         f.set_iter(f.iterations+1)
 
+    # Toggle whether to draw the curve
+    if k == ord('p'):
+        f.draw_curve = not f.draw_curve
+
+    # Toggle reconstruction
+    if k == ord('o'):
+        reconstruct = not reconstruct
+
     # Quit Program
     if k == ord('`'):
         running = False
 
     t_elaps = int((time.time() - t_start)*1000)
-    #print("\n\n\n\n\n\n\n\n\n\n\n\n")
     print("\n\n\n\n\n\n\n\n\n\n\n\n"+str(f)+"LOOP TIME: {}ms".format(t_elaps))

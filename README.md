@@ -3,15 +3,20 @@ A framework for reducing the dimensionality of the vision problem by utilizing M
    
 The goal of this experiement is to see whether a machine learning model could be taught to "see" using this data stream, as it would allow for a fundamentally different perception that I think is more similar to the way animals see the world, with a shifting gaze and adaptive focus.  
 
+The newly added reconstruction image represents the level of detail being "perceived" by the focus. The image is created by reading the last 1D memory frame, and uses those colors in combination with its list of curve coordinates to paint a reconstruction. The main purpose of this is to make the system more human inspectable, not to be used for learning.   
+
     
 ### To run    
-Simply run the VisionBeta.py script.   
+Simply run the VisionBeta.py script. 
+> python VisionBeta.py  
 
 ### Controls 
 1,2 - Cycle through loaded images. (By default there's a few)     
 W,A,S,D - Will move the Focus around within the image.   
-E - Toggle whether the Focus follows the mouse around the image.   
 R,F - Change the size of the Focus.   
 T,G - Change the number of iterations (Resolution) of the Moore Curve.  
+     
+E - Toggle whether the Focus follows the mouse around the image.   
 Q - Toggle whether to readout the entire memory, or only instantaneous.   
+P - Toggle whether to draw the curve (makes loop time faster on higher iterations).   
 ` - Exit the program.  
