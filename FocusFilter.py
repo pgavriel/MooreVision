@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import numpy as np
 import cv2 as cv
 import math
@@ -14,7 +15,7 @@ class FocusFilter:
         vmax = 0
         for i in range(0,self.len):
             offset = deg_offset * (math.pi / 180)
-            rel_pos = math.cos((i / self.len * (2 * math.pi)*freq) - offset) 
+            rel_pos = math.cos((float(i / float(self.len)) * (2 * math.pi)*freq) - offset)
             rel_pos = (rel_pos / 2) + 0.5
             if self.binarize:
                 rel_pos = round(rel_pos)
@@ -28,4 +29,3 @@ class FocusFilter:
     def draw(self,size=(320,100)):
         filter_img = cv.resize(self.filter,size)
         return filter_img
-

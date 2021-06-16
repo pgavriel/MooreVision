@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from LSysWalker import Walker
 import cv2 as cv
 import numpy as np
@@ -70,7 +71,7 @@ class Focus:
         img = image.copy()
         self.image_size = [img.shape[1],img.shape[0]]
 
-        
+
 
         curve_color = (200,200,200)
         color2 = (0,0,255)

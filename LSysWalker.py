@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import math
 
 # Used to aquire the list of coordinates that corresponds the the Moore curve with desired iterations
@@ -30,19 +31,19 @@ class Walker:
         for _ in range(1, self.iterations):
             self.result_string = self.iterate(self.result_string)
 
-        # Construct L System 
+        # Construct L System
         self.render_coords()
         # Center coordinates around 0,0
         self.rectify()
 
         print(self)
-    
+
     def __str__(self):
         s = "LSysTurtle: Iterations: {}  StepSize: {}\n\t   Axiom: {}  Rules: {}".format(self.iterations,self.step_size,self.axiom,self.rules)
         # s += "\n\nResult: {}".format(self.result_string)
         s += "\nPoints: {}".format(len(self.coords))
         s += "\nXRange: {}  YRange: {}".format(self.xrange,self.yrange)
-        return s 
+        return s
 
     def iterate(self, string):
         production = ''
@@ -59,7 +60,7 @@ class Walker:
         # Reset Coords, Add Starting Point
         self.coords = []
         self.coords.append(self.pos)
-        
+
         # Parse Result String
         for character in self.result_string:
             if character == 'F': # Step Forward
@@ -94,4 +95,3 @@ class Walker:
             coord[0] = coord[0] - xdiff
             coord[1] = coord[1] - ydiff
         #self.width = (2 ** self.iterations)*self.step_size
-        

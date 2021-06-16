@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from FocusCurve import Focus
 from FocusFilter import FocusFilter
 import cv2 as cv
@@ -80,7 +81,7 @@ while running:
         else:
             recon_img = f.reconstruct()
         cv.imshow("Reconstruction",recon_img)
-    
+
     #cv.imshow("vis_mem",f.mem_vis)
 
     k = cv.waitKey(delay) & 0xFF
@@ -151,21 +152,21 @@ while running:
         f_filter.gen_frequency_filter(filt_freq,filt_off)
 
     # Filter Control
-    if k == ord('n'):
+    if k == ord('v'):
         filt_freq = filt_freq + 1
         f_filter.len = len(f.coords)
         f_filter.gen_frequency_filter(filt_freq,filt_off)
-    if k == ord('b'):
+    if k == ord('c'):
         filt_freq = filt_freq - 1
         if filt_freq < 0 : filt_freq = 0
         f_filter.len = len(f.coords)
         f_filter.gen_frequency_filter(filt_freq,filt_off)
-    if k == ord('c'):
-        filt_off = (filt_off - 2) % 360
+    if k == ord('b'):
+        filt_off = (filt_off - 5) % 360
         f_filter.len = len(f.coords)
         f_filter.gen_frequency_filter(filt_freq,filt_off)
-    if k == ord('v'):
-        filt_off = (filt_off + 2) % 360
+    if k == ord('n'):
+        filt_off = (filt_off + 5) % 360
         f_filter.len = len(f.coords)
         f_filter.gen_frequency_filter(filt_freq,filt_off)
 
@@ -174,5 +175,5 @@ while running:
         running = False
 
     t_elaps = int((time.time() - t_start)*1000)
-    filt_str = "Filter Freq: {}\tDeg Offset: {}\n".format(filt_freq,filt_off)
+    filt_str = "Filter {} Freq: {}\tDeg Offset: {}\tBinarize: {}\n".format(("ON"if apply_filter else"OFF"),filt_freq,filt_off,f_filter.binarize)
     print("\n\n\n\n\n\n\n\n\n\n\n\n"+str(f)+filt_str+"LOOP TIME: {}ms".format(t_elaps))
