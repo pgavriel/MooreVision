@@ -152,12 +152,33 @@ class Focus:
     def reconstruct(self,filter=None):
         coords = self.coords
         ks = self.k_size
+        mem = self.mem_vis[0]
+        # print("PRE MEM SHAPE",mem.shape)
+        # if filter is not None:
+        #     filt = filter.filter
+        #     mem_filtered = np.zeros((len(coords),3))
+        #     for i in range(0,len(coords)):
+        #         f = filt[0][i]
+        #         print("MEMVAL",mem[i])
+        #         print("FILTVAL",f)
+        #         new_val = [ mem[i][0]*f, mem[i][1]*f, mem[i][2]*f ]
+        #         print("NEWVAL",new_val)
+        #         mem_filtered[i,:] = new_val
+        #     mem = mem_filtered
+        #     print("POSTSHAPE",mem.shape)
+
 
         recon_img = np.zeros((self.size,self.size,3),dtype=np.uint8)
         painter = np.zeros((ks*2,ks*2,3),dtype=np.uint8)
 
         for i in range(0,len(self.coords)):
-            avgcolor = self.mem_vis[0][i]
+            if filter is not None:
+                f = filter.filter[0][i]
+                f_val = [ mem[i][0]*f, mem[i][1]*f, mem[i][2]*f ]
+                avgcolor = f_val
+            else:
+                avgcolor = mem[i]
+            # print("AVG", avgcolor)
             painter[:,:] = avgcolor
             off = self.size//2
             x1 = int(coords[i][0]*self.scale+off)
