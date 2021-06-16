@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from LSysWalker import Walker
 import cv2 as cv
 import numpy as np

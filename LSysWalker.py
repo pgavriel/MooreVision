@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import math
 
 # Used to aquire the list of coordinates that corresponds the the Moore curve with desired iterations

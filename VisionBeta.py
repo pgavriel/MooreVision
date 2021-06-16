@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from FocusCurve import Focus
 from FocusFilter import FocusFilter
 import cv2 as cv
