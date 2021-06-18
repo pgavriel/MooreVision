@@ -202,16 +202,38 @@ while running:
 
     # Save images (Source, Curve, Reconstruction)
     if k == ord('i'):
+        font = cv.FONT_HERSHEY_COMPLEX 
+        org = (5, 620)
+        fontScale = 0.8
+        color = (255,255, 255)
+        thickness = 1
+
         d = f.size//2
         DIR = 'img/saved/'
+        vscale = f.mem_vis[0:1,:,:]
+        vscale = cv.resize(vscale,(600,50))
         c = len([name for name in os.listdir(DIR) if os.path.isfile(os.path.join(DIR, name))])
         im1 = cv.resize(img[f.pos[1]-d:f.pos[1]+d,f.pos[0]-d:f.pos[0]+d],(600,600))
+        
+        im1 = cv.copyMakeBorder(im1, 0, 75, 0, 0, cv.BORDER_CONSTANT)
+        im1[-50:,:,:] = vscale
+        
         im1name = "{:04}-orig.jpg".format(c+1)
         cv.imwrite(DIR+im1name,im1)
         im1 = cv.resize(curve_img[f.pos[1]-d:f.pos[1]+d,f.pos[0]-d:f.pos[0]+d],(600,600))
+        
+        im1 = cv.copyMakeBorder(im1, 0, 75, 0, 0, cv.BORDER_CONSTANT)
+        im1[-50:,:,:] = vscale
+        im1 = cv.putText(im1, '1D Representation', org, font,fontScale, color, thickness, cv.LINE_AA)
+
         im1name = "{:04}-curve.jpg".format(c+2)
         cv.imwrite(DIR+im1name,im1)
         im1 = cv.resize(recon_img,(600,600))
+
+        im1 = cv.copyMakeBorder(im1, 0, 75, 0, 0, cv.BORDER_CONSTANT)
+        im1[-50:,:,:] = vscale
+        im1 = cv.putText(im1, '1D Representation', org, font,fontScale, color, thickness, cv.LINE_AA)
+
         im1name = "{:04}-recon.jpg".format(c+3)
         cv.imwrite(DIR+im1name,im1)
     # Cycle through 360 degree offset
