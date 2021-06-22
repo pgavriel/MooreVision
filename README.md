@@ -5,7 +5,9 @@ A framework for reducing the dimensionality of the vision problem by utilizing M
 The goal of this experiement is to see whether a machine learning model could be taught to "see" using this data stream, as it would allow for a fundamentally different perception that I think is more similar to the way animals see the world, with a shifting gaze and adaptive focus.  
 
 The newly added reconstruction image represents the level of detail being "perceived" by the focus. The image is created by reading the last 1D memory frame, and uses those colors in combination with its list of curve coordinates to paint a reconstruction. The main purpose of this is to make the system more human inspectable, not to be used for learning.   
-
+    
+![Filtering F=42](img/git/filter-freq42.gif)    
+[Here's a video demonstrating various simple frequency filters](https://www.youtube.com/watch?v=e9KUrNSeHEs)   
 Frequency filtering has been added! Because the Moore curve has a cyclical property to it, I had a hunch that using filters based on frequency would yield an interesting result, and it did! In this case, Frequency filtering would be the equivalent of convolutional filters for traditional neural nets.     
 
 
