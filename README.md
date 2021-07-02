@@ -32,7 +32,8 @@ E - Toggle whether the Focus follows the mouse around the image.
 Q - Toggle whether to readout the entire memory, or only instantaneous.   
 P - Toggle whether to draw the curve (makes loop time faster on higher iterations).    
 
-###### Filter Controls (Bottom Letter Row)        
+###### Filter Controls (Bottom Letter Row)    
+NOTE: The demo is initiallized with a filter composed of adding a F=1 and F=6 together, however there is no easy way of creating compositions in the demo, so only simple frequency filters can be explored.          
 Z - Toggle filtering on/off     
 X,C - Lower/Raise the Frequency being filtered    
 V,B - Lower/Raise the angular degree offset of the filter   
