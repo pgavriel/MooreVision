@@ -1,5 +1,5 @@
 ### Moore Vision   
-A method for encoding visual data, reducing the dimensionality to a 1D representation with consistant data size and spatial representation by utilizing Moore Curves.    
+A method for encoding visual data, reducing the dimensionality to a 1D representation with consistant data size and spatial representation by utilizing [Moore Curves](https://en.wikipedia.org/wiki/Moore_curve).    
 ![Looking Around an Image](img/git/looking-around.gif)    
 ![Resolution Scaling](img/git/resolution.gif)    
    
