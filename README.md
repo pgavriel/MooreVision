@@ -15,7 +15,7 @@ The reconstruction image window represents the level of detail being "perceived"
 ![Filtering F=2](img/git/filter-freq2.gif) 
 ![Filtering F=42](img/git/filter-freq42.gif)    
 [Here's a video demonstrating various simple frequency filters](https://www.youtube.com/watch?v=e9KUrNSeHEs)   
-Frequency filtering has been added! Because the Moore curve has a cyclical property, you can specify 1D filters that remove parts of the curve based on different frequencies, and modified by different angular offsets and gain values. They can also be binarized and inverted easily. Additionally, it's trivial to add these frequency filters together, and compose an arbitrary number of them. Just as any function can be decomposed into fundamental frequencies, it seems you could build an arbitrary function using these frequency filters to remove arbitrary areas within the input data which could be built up to fill the role of traditional convolutions for detecting shapes and patterns. Another interesting feature of the Moore Curve is that when the resolution is changed, the region removed by a given filter stays constant.  
+Frequency filtering has been added! Because the Moore curve has a cyclical property, you can specify 1D filters that remove parts of the curve based on different frequencies, and modified by different angular offsets and gain values. They can also be binarized and inverted easily. Additionally, it's trivial to add these frequency filters together, and compose an arbitrary number of them. Just as any function can be decomposed into fundamental frequencies, it seems you could build an arbitrary function using these frequency filters to remove arbitrary areas within the input data which could be built up to fill the role of traditional convolutions for detecting shapes and patterns. Another interesting feature of the Moore Curve is that when the resolution is changed, the region removed by a given filter stays constant. This is one, fairly straightforward way of introducting 1D filtering over the input data, but I'm sure there are countless other interesting and creative ways to do it.     
 
 
 ### To run    
@@ -38,7 +38,7 @@ X,C - Lower/Raise the Frequency being filtered
 V,B - Lower/Raise the angular degree offset of the filter   
 N,M - Lower/Raise Filter gain  
 , - Toggle binarization of filter    
-. - Toggle filter inversion
+. - Toggle filter inversion      
 / - Cycle through 360 degree offsets
 
 ` - Exit the program.  
