@@ -169,34 +169,34 @@ while running:
     # Filter Control
     if k == ord('z'): # Toggle Filter On/Off
         apply_filter = not apply_filter
-    if k == ord('x'): # Toggle Filter Binarize
+    if k == ord(','): # Toggle Filter Binarize
         f_filter.binarize = not f_filter.binarize
         f_filter.gen_frequency_filter(filt_freq,filt_off)
     if k == ord('.'): # Toggle Filter Inversion
         f_filter.invert = not f_filter.invert
         f_filter.gen_frequency_filter(filt_freq,filt_off)
 
-    if k == ord('v'): # Increase Filter frequency
+    if k == ord('c'): # Increase Filter frequency
         filt_freq = filt_freq + 1
         f_filter.len = len(f.coords)
         f_filter.gen_frequency_filter(filt_freq,filt_off)
-    if k == ord('c'): # Decrease Filter frequency
+    if k == ord('x'): # Decrease Filter frequency
         filt_freq = filt_freq - 1
         if filt_freq < 0 : filt_freq = 0
         f_filter.len = len(f.coords)
         f_filter.gen_frequency_filter(filt_freq,filt_off)
-    if k == ord('b'): # Decrease Filter offset
+    if k == ord('v'): # Decrease Filter offset
         filt_off = (filt_off - 30) % 360
         f_filter.len = len(f.coords)
         f_filter.gen_frequency_filter(filt_freq,filt_off)
-    if k == ord('n'): # Increase Filter offset
+    if k == ord('b'): # Increase Filter offset
         filt_off = (filt_off + 30) % 360
         f_filter.len = len(f.coords)
         f_filter.gen_frequency_filter(filt_freq,filt_off)
-    if k == ord('m'): # Decrease Filter gain
+    if k == ord('n'): # Decrease Filter gain
         f_filter.gain = max(0,f_filter.gain - 0.05)
         f_filter.gen_frequency_filter(filt_freq,filt_off)
-    if k == ord(','): # Increase Filter gain
+    if k == ord('m'): # Increase Filter gain
         f_filter.gain = f_filter.gain + 0.05
         f_filter.gen_frequency_filter(filt_freq,filt_off)
 
@@ -237,10 +237,17 @@ while running:
         im1name = "{:04}-recon.jpg".format(c+3)
         cv.imwrite(DIR+im1name,im1)
     # Cycle through 360 degree offset
-    if k == ord('u'):
+    if k == ord('/'):
         filter_scanning = True
         filt_off = 0
         f_filter.gen_frequency_filter(filt_freq,filt_off)
+    # Save screenshot
+    if k == ord('9'):
+        DIR = 'img/saved/'
+        c = len([name for name in os.listdir(DIR) if os.path.isfile(os.path.join(DIR, name))])
+        imname = "{:04}-screenshot.jpg".format(c+1)
+        cv.imwrite(DIR+imname,curve_img)
+
 
     # Quit Program
     if k == ord('`'):

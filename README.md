@@ -1,10 +1,15 @@
-### Moore Vision    
+### Moore Vision   
+A method for encoding visual data, reducing the dimensionality to a 1D representation with consistant data size and spatial representation by utilizing Moore Curves.    
+![Looking Around an Image](img/git/looking-around.gif)    
 ![Resolution Scaling](img/git/resolution.gif)    
-A method for encoding visual data, reducing the dimensionality to 1D by utilizing Moore Curves. Properties of Moore Curves allow the resolution to be increased arbitrarily, with the same areas within the Focus mapping to the same relative position along the curve. In effect, this enables a consistant and dynamic representation of 2D image data in a 1D structure. Because of this, an extra dimension of time can be added, which brings it back up to a 2D representation, but this is still much simpler than a 3D representation of Image+Time. Additionally, a representation of the movement (Vertical, Horizontal, and Focus Size) can be easily represented and tacked on for additional context (Seen on the far right of the readout).        
+   
+Properties of Moore Curves allow the resolution to be increased arbitrarily, with the same areas within the Focus mapping to the same relative position along the curve. In effect, this enables a consistant and dynamic representation of 2D image data in a 1D structure. Because of this, an extra dimension of time can be added, which brings it back up to a 2D representation, but this is still much simpler than a 3D representation of Image+Time. Additionally, a representation of the movement (Vertical, Horizontal, and Focus Size) can be easily represented and tacked on for additional context (Seen on the far right of the readout).        
 
-The goal of this experiement is to see whether a machine learning model could be taught to "see" using this data stream, as it would allow for a fundamentally different perception that I think is more similar to the way animals see the world, with a shifting gaze and adaptive focus.  
+The goal of this experiement is to see whether a machine learning model could be taught to "see" using this data stream, as it would allow for a fundamentally different perception that I think is more similar to the way animals see the world, with a shifting gaze and adaptive focus. In my limited knowledge on the topic, using a Transformer-like network architecture seems to be the right direction to head in.  
 
-The newly added reconstruction image represents the level of detail being "perceived" by the focus. The image is created by reading the last 1D memory frame, and uses those colors in combination with its list of curve coordinates to paint a reconstruction. The main purpose of this is to make the system more human inspectable, not to be used for learning.   
+From a high-level view, I imagine a system that would be able to build up it's confidence in what it's looking at by looking around and looking closer at certain details of the image, and this would all be able to be represented without changing the size of the input data stream. Notably, changing the resolution of the curve itself is what changes the size of the data stream (to 4^iterations points). However, looking around and changing the size of the Focus can be done without affecting the data stream, so I imagine a curve of 5 or 6 iterations (1024 or 4096 points) would be ideal to train a model for preliminary results.    
+      
+The reconstruction image window represents the level of detail being "perceived" by the focus. The image is created by reading the last 1D memory frame, and uses those colors in combination with its list of curve coordinates to paint a reconstruction. The main purpose of this is to make the system more human inspectable, not to be used for learning.   
     
 #### Frequency Filtering
 ![Filtering F=2](img/git/filter-freq2.gif) 
@@ -28,11 +33,12 @@ Q - Toggle whether to readout the entire memory, or only instantaneous.
 P - Toggle whether to draw the curve (makes loop time faster on higher iterations).    
 
 ###### Filter Controls (Bottom Letter Row)        
-Z - Toggle filtering on/off    
-X - Toggle binarization of filter    
-C,V - Lower/Raise the Frequency being filtered    
-B,N - Lower/Raise the angular degree offset of the filter   
-M/, - Lower/Raise Filter gain    
-. -  Toggle filter inversion
+Z - Toggle filtering on/off     
+X,C - Lower/Raise the Frequency being filtered    
+V,B - Lower/Raise the angular degree offset of the filter   
+N,M - Lower/Raise Filter gain  
+, - Toggle binarization of filter    
+. - Toggle filter inversion
+/ - Cycle through 360 degree offsets
 
 ` - Exit the program.  
