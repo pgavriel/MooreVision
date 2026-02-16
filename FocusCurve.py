@@ -38,6 +38,9 @@ class Focus:
         # self.reconstruct_image = True
         self.readout_full_memory = True #True: Draw whole memory, False: Instantaneous Reading
 
+    def get_data(self):
+        return self.mem_vis[0:1,:,:]
+
     # Set number of curve iterations
     def set_iter(self, iter):
         self.iterations = max(iter,1)
@@ -174,10 +177,15 @@ class Focus:
 
     # Reconstruct a human inspectable image based on coordinates and color in memory
     # The reconstruction represents what level of detail the focus is capable of distinguishing
-    def reconstruct(self,filter=None):
+    def reconstruct(self,filter=None,custom_mem=None):
         coords = self.coords
         ks = self.k_size
-        mem = self.mem_vis[0]
+        if custom_mem is None:
+            mem = self.mem_vis[0]
+            # print(f"Mem shape: {mem.shape}")
+        else:
+            mem = custom_mem
+            # print(f"Mem shape custom: {mem.shape}")
 
         new_method = True
         if new_method:

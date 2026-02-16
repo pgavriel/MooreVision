@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-from FocusCurve import Focus
-from FocusFilter import FocusFilter
-import cv2 as cv
-import numpy as np
 import os
 import time
 
+import cv2 as cv
+import numpy as np
+
+from FocusCurve import Focus
+from FocusFilter import FocusFilter
+from FourierRecon import *
 
 def mouse_call(event,x,y,flags,param):
     global f
@@ -54,6 +56,7 @@ else:
 reconstruct = True
 apply_filter = False
 filter_scanning = False
+fourier_testing = True
 
 # Initialize simple filter composition 
 filt_freq = 1
@@ -68,12 +71,22 @@ f_filter.compose(f2)
 # cv.waitKey(0)
 # exit()
 
+#||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+#||                      RUNNING LOOP                              ||
+#||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+TARGET_FRAME_TIME = 1.0 / 25.0
+msg_every_n = 30   # avoid spamming console
+over_frametime = 0
+frame = 0
+reconstruct_n = 12
+fourier_1d = True
 size_inc = 10
 move_inc = 10
-delay = 50 #ms
+# delay = 50 #ms
 running = True
 while running:
-    t_start = time.time()
+    start = time.perf_counter()
+    # t_start = time.time()
 
     # Generate image with curve overlay and memory readout
     curve_img = f.draw(img)
@@ -85,8 +98,36 @@ while running:
             recon_img = f.reconstruct(f_filter)
         else:
             recon_img = f.reconstruct()
-        recon_img = cv.resize(recon_img,(500,500))
+        recon_img = cv.resize(recon_img,(400,400))
         cv.imshow("Reconstruction",recon_img)
+
+    #Fourier Testing
+    if fourier_testing:
+        
+        if fourier_1d:
+            Sig, Fq, Mg, Ph, Vals = get_fourier_features_1d(f.get_data(),print_data=False,draw_data=True)
+            components, recon = reconstruct_top_frequencies(
+                Fq, Mg, Ph, N=reconstruct_n, signal_length=len(Sig)
+            )
+            comp_img = components_to_image(components)
+            recon_img = signal_to_image(recon)
+            orig_img = signal_to_image(Sig)
+            cv.imshow("Top Frequency Components", comp_img)
+            cv.imshow("Reconstructed Signal", recon_img)
+            cv.imshow("Original Signal", orig_img)
+            fourier_recon = f.reconstruct(custom_mem=recon_img[0])
+            fourier_recon = cv.resize(fourier_recon,(400,400))
+            cv.imshow(f"Fourier Reconstruction", fourier_recon)
+        else:
+            fft_data = fft_1d_rgb(f.get_data())
+
+            rgb_recon = reconstruct_rgb(fft_data, N=reconstruct_n)
+            cv.imshow("RGB Reconstruction", rgb_recon)
+
+            fourier_recon = f.reconstruct(custom_mem=rgb_recon[-1])
+            fourier_recon = cv.resize(fourier_recon,(400,400))
+            cv.imshow(f"Fourier Reconstruction", fourier_recon)
+
 
     # Draw unscaled Focus Memory
     #cv.imshow("vis_mem",f.mem_vis)
@@ -104,8 +145,16 @@ while running:
         if filt_off == 0:
             filter_scanning = False
 
-
-    k = cv.waitKey(delay) & 0xFF
+    #||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+    #||                     KEYBOARD CONTROLS                          ||
+    #||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+    compute_time = time.perf_counter() - start
+    
+    wait_time = max(1,int(1000*(TARGET_FRAME_TIME - compute_time)))
+    if wait_time == 1: 
+        over_frametime += 1
+    # print(f'Compute time: {compute_time} - Wait Time: {wait_time}ms')
+    k = cv.waitKey(wait_time) & 0xFF
 
     # Switch Image
     if k == ord('1'):
@@ -165,6 +214,19 @@ while running:
     # Toggle reconstruction
     if k == ord('o'):
         reconstruct = not reconstruct
+
+    # Toggle Fourier Testing
+    if k == ord('-'):
+        fourier_testing = not fourier_testing
+        # Sig, Fq, Mg, Ph, Vals = get_fourier_features_1d(f.get_data())
+    if k == ord('0'): # Decrease Fourier reconstruction N
+        reconstruct_n = max(1,reconstruct_n-1)
+        print(f"New Fourier Reconstruct N: {reconstruct_n}")
+    if k == ord('='): # Increase Fourier reconstruction N
+        reconstruct_n = max(1,reconstruct_n+1)
+        print(f"New Fourier Reconstruct N: {reconstruct_n}")
+    if k == ord('9'): # Toggle 1D/3D Reconstruction
+        fourier_1d = not fourier_1d
 
     # Filter Control
     if k == ord('z'): # Toggle Filter On/Off
@@ -242,7 +304,7 @@ while running:
         filt_off = 0
         f_filter.gen_frequency_filter(filt_freq,filt_off)
     # Save screenshot
-    if k == ord('9'):
+    if k == ord('8'):
         DIR = 'img/saved/'
         c = len([name for name in os.listdir(DIR) if os.path.isfile(os.path.join(DIR, name))])
         imname = "{:04}-screenshot.jpg".format(c+1)
@@ -253,6 +315,16 @@ while running:
     if k == ord('`'):
         running = False
 
-    t_elaps = int((time.time() - t_start)*1000)
-    filt_str = "Filter {} Freq: {}\tDeg Offset: {}\tBinarize: {}\tGain: {:2f}\n".format(("ON"if apply_filter else"OFF"),filt_freq,filt_off,f_filter.binarize,f_filter.gain)
-    print("\n\n\n\n\n\n\n\n\n\n\n\n"+str(f)+filt_str+"LOOP TIME: {}ms".format(t_elaps))
+    # t_elaps = int((time.perf_counter() - start)*1000)
+    # filt_str = "Filter {} Freq: {}\tDeg Offset: {}\tBinarize: {}\tGain: {:2f}\n".format(("ON"if apply_filter else"OFF"),filt_freq,filt_off,f_filter.binarize,f_filter.gain)
+    # print("\n\n\n\n\n\n\n\n\n\n\n\n"+str(f)+filt_str+"LOOP TIME: {}ms".format(t_elaps))
+
+    # MANAGE PRINTOUTS
+    if frame % msg_every_n == 0:
+    #     print("\n\n\n\n\n\n\n\n\n\n\n\n\n")
+    #     print("== Console Test")
+    #     if over_frametime > 0: 
+    #         print(f"WARN: Runtime below desired speed of {int(1/TARGET_FRAME_TIME)}fps for {over_frametime}/{msg_every_n} frames.")
+            over_frametime = 0
+
+    frame += 1
