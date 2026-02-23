@@ -254,6 +254,7 @@ while running:
             curve_img = f.draw(img)
             vt.add_view(img,f)
             vt.show_map()
+        vt.print_states()
 
     # [DEPRECATED] Filter Control (Bottom Row) 
     # if k == ord('z'): # Toggle Filter On/Off

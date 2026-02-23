@@ -1,5 +1,15 @@
 import numpy as np
 import cv2 as cv
+# from skimage.metrics import structural_similarity as ssim
+def patch_mae(p1, p2):
+    #TODO: Ensure returns a numerical value
+    diff = p1.astype(np.float32) - p2.astype(np.float32)
+    return np.mean(np.abs(diff))
+
+# def patch_sae(p1, p2):
+#     diff = p1.astype(np.float32) - p2.astype(np.float32)
+#     return np.sum(np.abs(diff))
+
 class ViewTracker:
     def __init__(self,base_image,verbose=False):
         self.verbose = verbose
@@ -46,6 +56,10 @@ class ViewTracker:
         recon_img = cv.resize(recon_img,(xy2[1]-xy1[1],xy2[0]-xy1[0]))
         recon_img[~mask] = 0
         # nonzero_mask = np.any(recon_img != 0, axis=2)
+        print(f"S1: {recon_img[mask].shape}, S2: { recon_roi[mask].shape}")
+        mae = patch_mae(recon_img[mask], recon_roi[mask])
+        # sae = patch_sae(recon_img[mask], recon_roi[mask])
+
         recon_roi[mask] = recon_img[mask]
         self.view_recon[xy1[1]:xy2[1],xy1[0]:xy2[0]] = recon_roi
         # cv.imshow("recon debug",recon_img)
@@ -53,11 +67,13 @@ class ViewTracker:
         # cv.imshow("recon debu23g",recon_roi)
 
         # Calculate scoring
-        penalty = 0.2
-        max_score = (f_size * f_size) / (1 + (penalty * (f_k-1) * (f_k-1)))
+        # TODO: Compare the difference between the recon before and after update, this will be an important score
+        # penalty = 0.2
+        # max_score = (f_size * f_size) / (1 + (penalty * (f_k-1) * (f_k-1)))
         # TODO: There's probably a way to save compute if I do this earlier
-        mask_contrib = np.sum(mask) / (f_size * f_size) # [0-1] how much of the focus improved the current map
-        k_s = f_k / f_size
+        mask_contrib = np.sum(mask) / (f_size * f_size) # [0-1] how much of the focus changed the current map
+        view_score = mask_contrib * mae
+        # k_s = f_k / f_size
         # Assemble features & data
         if mask_contrib > 0.0:
             features = [rel_pos[0], rel_pos[1], rel_size[0], rel_size[1], rel_area, f_k]
@@ -66,16 +82,18 @@ class ViewTracker:
                 self.data = data
             else:
                 self.data = np.vstack((self.data,data))
-            self.views.append((features,data))
+            self.views.append((features,data,view_score))
+        
+            # Debug print
+            if self.verbose:
+                print(f"[Add View]\n  [Image] {image.shape}")
+                print(f"  [Focus]\n\tRelative Pos: {rel_pos}\n\tRelative Size: {rel_size}\n\tK Value: {f_k}")
+                print(f"  [Features]\n\t{features}")
+                print(f"  [Scores]\n\tMask: {mask_contrib}")
+                print(f"\tMAE: {mae}\n\tView Score: {view_score:.2f}")
+
         else:
             print("WARN: Nothing new added, view not appended.")
-
-        # Debug print
-        if self.verbose:
-            print(f"[Add View]\n  [Image] {image.shape}")
-            print(f"  [Focus]\n\tRelative Pos: {rel_pos}\n\tRelative Size: {rel_size}\n\tK Value: {f_k}")
-            print(f"  [Features]\n\t{features}")
-            print(f"  [Scores]\n\tMax: {max_score:.2f}\n\tMask: {mask_contrib}\n\tK/S {k_s}")
 
         
 
@@ -121,15 +139,23 @@ class ViewTracker:
 
     def print_states(self):
         print(f"View Tracker States: ")
+        score_sum = 0
         if len(self.views) > 0:
-            print(f"[{' Pos':<15}][{' Size':<15}][{' Area':<15}][{' K':<15}][{' Data Shape':<15}]")
-            for f, data in self.views:
+            print(f"[{' Pos':<15}][{' Size':<15}][{' Area':<15}][{' K':<15}][{' Data Shape':<15}][{' Score':<15}]")
+            for f, data, score in self.views:
+                score_sum += score
                 s =  f"   {f[0]:.2f}, {f[1]:.2f}".ljust(17)
                 s += f"   {f[2]:.2f}, {f[3]:.2f}".ljust(17)
                 s += f"   {f[4]:.4f}".ljust(17)
                 s += f"   {f[5]}".ljust(17)
                 
+                shape = data.shape
                 s += f"   {data.shape}".ljust(17)
+                s += f"   {score:.2f}".ljust(17)
                 print(s)
+            print(f"Total Views: {len(self.views)}  -  Total Score: {score_sum:.2f}")
+            total_features = np.prod(shape) * len(self.views)
+            print(f"Total Features (Views x 6 + Shape x Channels): {total_features}")
+
 
 
