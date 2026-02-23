@@ -2,6 +2,7 @@
 from LSysWalker import Walker
 import cv2 as cv
 import numpy as np
+import random
 
 def bound(n, minn, maxn):
     return max(min(maxn, n), minn)
@@ -39,7 +40,9 @@ class Focus:
         self.readout_full_memory = True #True: Draw whole memory, False: Instantaneous Reading
 
     def get_data(self):
-        return self.mem_vis[0:1,:,:]
+        data = self.mem_vis[0:1,:,:].astype(np.uint8)
+        # print(f"FOCUS DATA {data.shape}: {data}")
+        return data
 
     # Set number of curve iterations
     def set_iter(self, iter):
@@ -76,6 +79,27 @@ class Focus:
         self.k_size = int((self.walker.step_size*self.scale)//2)
         if self.k_size < 1: self.k_size = 1
         self.move_to(self.pos)
+
+    def set_state_normed(self,norm_pos,norm_size):
+        size = [int(self.image_size[0]*norm_size[0]), int(self.image_size[1]*norm_size[1])]
+        size[0] += size[0] % 2 # Ensure even number
+        self.set_size(size[0])
+
+        pos = [int(self.image_size[0]*norm_pos[0]), int(self.image_size[1]*norm_pos[1])]
+        self.move_to(pos)
+        print(f"sz {size}    pos {pos}")
+    
+    def set_random_state(self):
+        size = [
+            random.uniform(0,1),
+            random.uniform(0,1) # Currently unused
+        ]
+        pos = [
+            random.uniform(0,1),
+            random.uniform(0,1) # Currently unused
+        ]
+        print(f"[Random] Size={size}   Pos={pos}")
+        self.set_state_normed(pos,size)
 
     # Generate image with curve overlay + memory readout
     def draw(self, image):

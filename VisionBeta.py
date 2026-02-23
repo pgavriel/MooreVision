@@ -8,6 +8,7 @@ import numpy as np
 from FocusCurve import Focus
 from FocusFilter import FocusFilter
 from FourierRecon import *
+from ViewTracker import ViewTracker
 
 def mouse_call(event,x,y,flags,param):
     global f
@@ -56,9 +57,13 @@ else:
 reconstruct = True
 apply_filter = False
 filter_scanning = False
-fourier_testing = True
+fourier_testing = False
 
-# Initialize simple filter composition 
+# VIEW TRACKER
+vt = ViewTracker(img)
+
+
+# [OLD] Initialize simple filter composition 
 filt_freq = 1
 filt_off = 0
 f_filter = FocusFilter(len(f.coords))
@@ -98,6 +103,7 @@ while running:
             recon_img = f.reconstruct(f_filter)
         else:
             recon_img = f.reconstruct()
+        # print(f"Recon Size: {recon_img.shape}")
         recon_img = cv.resize(recon_img,(400,400))
         cv.imshow("Reconstruction",recon_img)
 
@@ -162,11 +168,13 @@ while running:
         img_num = img_num % len(img_list)
         img = cv.imread(img_list[img_num])
         f.move_to(f.pos)
+        vt.set_image(img)
     if k == ord('2'):
         img_num = img_num + 1
         img_num = img_num % len(img_list)
         img = cv.imread(img_list[img_num])
         f.move_to(f.pos)
+        vt.set_image(img)
 
     # Change Focus Scale
     if k == ord('r'):
@@ -228,39 +236,58 @@ while running:
     if k == ord('9'): # Toggle 1D/3D Reconstruction
         fourier_1d = not fourier_1d
 
-    # Filter Control
-    if k == ord('z'): # Toggle Filter On/Off
-        apply_filter = not apply_filter
-    if k == ord(','): # Toggle Filter Binarize
-        f_filter.binarize = not f_filter.binarize
-        f_filter.gen_frequency_filter(filt_freq,filt_off)
-    if k == ord('.'): # Toggle Filter Inversion
-        f_filter.invert = not f_filter.invert
-        f_filter.gen_frequency_filter(filt_freq,filt_off)
+    # View Tracker Controls
+    if k == ord('z'): # Add view
+        vt.add_view(img,f)
+        vt.show_map()
+        # vt.print_states()
+    if k == ord('x'): # Reset views
+        vt.clear_map()
+    if k == ord('c'): # Show view map
+        vt.print_states()
+    if k == ord('v'): # Save N random view state
+        follow_mouse = False
+        cv.setMouseCallback("VisionBeta",mouse_off)
+        n_states = 10
+        for si in range(n_states):
+            f.set_random_state()
+            curve_img = f.draw(img)
+            vt.add_view(img,f)
+            vt.show_map()
 
-    if k == ord('c'): # Increase Filter frequency
-        filt_freq = filt_freq + 1
-        f_filter.len = len(f.coords)
-        f_filter.gen_frequency_filter(filt_freq,filt_off)
-    if k == ord('x'): # Decrease Filter frequency
-        filt_freq = filt_freq - 1
-        if filt_freq < 0 : filt_freq = 0
-        f_filter.len = len(f.coords)
-        f_filter.gen_frequency_filter(filt_freq,filt_off)
-    if k == ord('v'): # Decrease Filter offset
-        filt_off = (filt_off - 30) % 360
-        f_filter.len = len(f.coords)
-        f_filter.gen_frequency_filter(filt_freq,filt_off)
-    if k == ord('b'): # Increase Filter offset
-        filt_off = (filt_off + 30) % 360
-        f_filter.len = len(f.coords)
-        f_filter.gen_frequency_filter(filt_freq,filt_off)
-    if k == ord('n'): # Decrease Filter gain
-        f_filter.gain = max(0,f_filter.gain - 0.05)
-        f_filter.gen_frequency_filter(filt_freq,filt_off)
-    if k == ord('m'): # Increase Filter gain
-        f_filter.gain = f_filter.gain + 0.05
-        f_filter.gen_frequency_filter(filt_freq,filt_off)
+    # [DEPRECATED] Filter Control (Bottom Row) 
+    # if k == ord('z'): # Toggle Filter On/Off
+    #     apply_filter = not apply_filter
+    # if k == ord(','): # Toggle Filter Binarize
+    #     f_filter.binarize = not f_filter.binarize
+    #     f_filter.gen_frequency_filter(filt_freq,filt_off)
+    # if k == ord('.'): # Toggle Filter Inversion
+    #     f_filter.invert = not f_filter.invert
+    #     f_filter.gen_frequency_filter(filt_freq,filt_off)
+
+    # if k == ord('c'): # Increase Filter frequency
+    #     filt_freq = filt_freq + 1
+    #     f_filter.len = len(f.coords)
+    #     f_filter.gen_frequency_filter(filt_freq,filt_off)
+    # if k == ord('x'): # Decrease Filter frequency
+    #     filt_freq = filt_freq - 1
+    #     if filt_freq < 0 : filt_freq = 0
+    #     f_filter.len = len(f.coords)
+    #     f_filter.gen_frequency_filter(filt_freq,filt_off)
+    # if k == ord('v'): # Decrease Filter offset
+    #     filt_off = (filt_off - 30) % 360
+    #     f_filter.len = len(f.coords)
+    #     f_filter.gen_frequency_filter(filt_freq,filt_off)
+    # if k == ord('b'): # Increase Filter offset
+    #     filt_off = (filt_off + 30) % 360
+    #     f_filter.len = len(f.coords)
+    #     f_filter.gen_frequency_filter(filt_freq,filt_off)
+    # if k == ord('n'): # Decrease Filter gain
+    #     f_filter.gain = max(0,f_filter.gain - 0.05)
+    #     f_filter.gen_frequency_filter(filt_freq,filt_off)
+    # if k == ord('m'): # Increase Filter gain
+    #     f_filter.gain = f_filter.gain + 0.05
+    #     f_filter.gen_frequency_filter(filt_freq,filt_off)
 
     # Save images (Source, Curve, Reconstruction)
     if k == ord('i'):
