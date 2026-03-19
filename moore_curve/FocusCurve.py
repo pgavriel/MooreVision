@@ -39,8 +39,8 @@ class Focus:
         # self.reconstruct_image = True
         self.readout_full_memory = True #True: Draw whole memory, False: Instantaneous Reading
 
-    def get_data(self):
-        data = self.mem_vis[0:1,:,:].astype(np.uint8)
+    def get_data(self, dtype=np.uint8):
+        data = self.mem_vis[0:1,:,:].astype(dtype)
         # print(f"FOCUS DATA {data.shape}: {data}")
         return data
 
@@ -53,7 +53,7 @@ class Focus:
         # Set appropriate scaling factor for desired size
         self.scale = float(self.size) / float(self.walker.width)
         self.k_size = int((self.walker.step_size*self.scale)//2)
-        if self.k_size < 1: self.k_size = 1
+        if self.k_size < 0: self.k_size = 0
         
         self.mem_vis = cv.resize(self.mem_vis,(len(self.coords),self.memory))
         self.move_to(self.pos)
@@ -73,11 +73,11 @@ class Focus:
     # Set desired width of Focus in pixels
     def set_size(self, size):
         self.last_size = self.size
-        self.size = max(size,40)
+        self.size = max(size,16) # TODO: Make this dynamic based on iteration
         self.size = min(self.size, min(self.image_size[0],self.image_size[1]))
         self.scale = float(self.size) / float(self.walker.width)
         self.k_size = int((self.walker.step_size*self.scale)//2)
-        if self.k_size < 1: self.k_size = 1
+        if self.k_size < 0: self.k_size = 0
         self.move_to(self.pos)
 
     def set_state_normed(self,norm_pos,norm_size):
@@ -139,7 +139,10 @@ class Focus:
             x1 = int(coords[i][0]*self.scale+pos[0])
             y1 = int(coords[i][1]*self.scale+pos[1])
             # Find average color around coordinate (2 * kernel size)
-            avgcolor = image[y1-ks:y1+ks,x1-ks:x1+ks].mean(axis=0).mean(axis=0)
+            if ks != 0:
+                avgcolor = image[y1-ks:y1+ks,x1-ks:x1+ks].mean(axis=0).mean(axis=0)
+            else:
+                avgcolor = image[y1,x1]
             # Assign average color to appropriate memory location
             self.mem_vis[0:2,i] = avgcolor
             # Draw curve on the image
@@ -203,7 +206,7 @@ class Focus:
     # The reconstruction represents what level of detail the focus is capable of distinguishing
     def reconstruct(self,filter=None,custom_mem=None):
         coords = self.coords
-        ks = self.k_size
+        ks = max(1,self.k_size)
         if custom_mem is None:
             mem = self.mem_vis[0]
             # print(f"Mem shape: {mem.shape}")

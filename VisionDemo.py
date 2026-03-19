@@ -42,7 +42,7 @@ img = cv.imread(img_list[img_num])
 # Initial Focus Settings
 pos = [img.shape[1]//2, img.shape[0]//2]
 iterations = 4
-init_size = 240
+init_size = 64#256
 
 # Create Focus Object
 f = Focus(iter=iterations,pos=pos,mem=100)
@@ -91,7 +91,7 @@ msg_every_n = 100   # avoid spamming console
 over_frametime = 0
 frame = 0
 reconstruct_n = 250
-size_inc = 10
+size_inc = 2#8
 move_inc = 10
 # delay = 50 #ms
 running = True
@@ -197,8 +197,10 @@ while running:
     # Change Focus Scale
     if k == ord('r'):
         f.set_size(f.size + size_inc)
+        print(f'Width: {f.size} K:{f.k_size}')
     if k == ord('f'):
         f.set_size(f.size - size_inc)
+        print(f'Width: {f.size} K:{f.k_size}')
 
     # Move Focus
     if k == ord('w'):
