@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 import os
 import time
-
+import sys
 import cv2 as cv
 import numpy as np
 
-from FocusCurve import Focus
-from FocusFilter import FocusFilter
-from FourierRecon import *
-from ViewTracker import ViewTracker
+# Include custom imports
+script_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, script_dir)
+sys.path.insert(0, os.path.join(script_dir,"moore_curve"))
+from moore_curve.FocusCurve import Focus
+from tools.FocusFilter import FocusFilter
+from tools.FourierRecon import *
+from tools.ViewTracker import ViewTracker
 
 def mouse_call(event,x,y,flags,param):
     global f
