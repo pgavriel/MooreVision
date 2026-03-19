@@ -3,6 +3,15 @@ import cv2 as cv
 import numpy as np
 import matplotlib.pyplot as plt
 
+def softmax(x):
+    """
+    Compute the softmax function for a given input vector x.
+    Ensures numerical stability by subtracting the maximum value.
+    """
+    # Subtract the maximum value for numerical stability
+    e_x = np.exp(x - np.max(x))
+    return e_x / e_x.sum()
+
 def reconstruct_top_frequencies(freqs, magnitude, phase, N, signal_length):
     half = signal_length // 2
 
@@ -10,7 +19,7 @@ def reconstruct_top_frequencies(freqs, magnitude, phase, N, signal_length):
     phs = phase[:half]
     freqs = freqs[:half]
 
-    mag[0] = 0  # remove DC
+    # mag[0] = 0  # remove DC
 
     top_idx = np.argsort(mag)[-N:]
 
@@ -202,15 +211,62 @@ def fft_1d_rgb(img):
 
     return out
 
+def show_original_rgb(image,height=10):
+    length = image.shape[1]
 
-def reconstruct_rgb(fft_data, N, height=50):
-    length = len(fft_data["r"]["magnitude"])
+    vis_rows = []
+    rgb_channels = []
+    
+    for c in [0, 1, 2]:
+        x = np.squeeze(image[:,:,c])
+        print(f"SHAPE {x.shape}")
+        # make it a tall strip for viewing
+        row = np.repeat(x[np.newaxis, :], height, axis=0)
+
+        vis_rows.append(row)     # grayscale row
+        rgb_channels.append(x)  # save for RGB combine
+    # build RGB reconstruction
+    rgb = np.stack(rgb_channels, axis=-1)      # (W, 3)
+    rgb = np.repeat(rgb[np.newaxis, :, :], height, axis=0)
+
+    color_rows = []
+
+    # Blue row
+    b_row = np.zeros((height, length, 3), dtype=np.uint8)
+    b_row[..., 0] = vis_rows[0]
+    color_rows.append(b_row)
+
+    # Green row
+    g_row = np.zeros((height, length, 3), dtype=np.uint8)
+    g_row[..., 1] = vis_rows[1]
+    color_rows.append(g_row)
+
+    # Red row
+    r_row = np.zeros((height, length, 3), dtype=np.uint8)
+    r_row[..., 2] = vis_rows[2]
+    color_rows.append(r_row)
+    
+    stacked = np.vstack([
+        color_rows[0],
+        color_rows[1],
+        color_rows[2],
+        rgb
+    ])
+
+    return stacked
+
+
+def reconstruct_rgb(fft_data, N, height=10):
+    length = len(fft_data["b"]["magnitude"])
 
     recon = {}
 
     # Reconstruct each channel in 1D
+    mags = []
     for c in ["b", "g", "r"]:
         d = fft_data[c]
+        mags.append(d["magnitude"][0]) # Gather mean brightness
+        print(f"[{c}] Mag0: {d['magnitude'][0]}")
         recon[c] = reconstruct_channel(
             d["freqs"],
             d["magnitude"],
@@ -218,16 +274,24 @@ def reconstruct_rgb(fft_data, N, height=50):
             N,
             length
         )
-
+    channel_norms = {}
+    c_norms = softmax(mags)
+    channel_norms["b"] = c_norms[0]
+    channel_norms["g"] = c_norms[1]
+    channel_norms["r"] = c_norms[2]
+    print(f"Channel Norms: {channel_norms}")
     vis_rows = []
     rgb_channels = []
     
     for c in ["b", "g", "r"]:
         x = recon[c].astype(np.float32)
+        # x = x * channel_norms[c]
+        # x = recon[c].astype(np.uint8)
 
         # normalize 0–255
         x -= x.min()
         x /= x.max() - x.min() + 1e-8
+        # x = (x * channel_norms[c] * 255).astype(np.uint8)
         x = (x * 255).astype(np.uint8)
 
         # make it a tall strip for viewing

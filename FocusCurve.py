@@ -261,3 +261,10 @@ class Focus:
         s += "LPos:{}\tLSize:{}\n".format(self.last_pos,self.last_size)
         s += " Pos:{}\t Size:{}\tScale:{}\tKSize:{}\n".format(self.pos,self.size,self.scale,self.k_size)
         return s
+
+    def rotate_curve(self,n=1):
+        data = self.get_data()
+        n = n % len(data)
+        print(f"[Rotate] {n}/{len(data)}")
+        shifted = np.roll(data, n)
+        return shifted
