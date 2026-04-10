@@ -15,6 +15,7 @@ class ViewTracker:
     def __init__(self,base_image,verbose=False):
         self.verbose = verbose
         self.set_image(base_image)
+        self.views = []
         self.data = None
 
     def clear_map(self):
@@ -24,6 +25,9 @@ class ViewTracker:
         self.data = None
         if self.verbose: print("Map/views Cleared.")
 
+    def get_num_views(self):
+        return len(self.views)
+    
     def set_image(self,image,clear=True):
         self.base_image = image
         self.h, self.w, _ = self.base_image.shape

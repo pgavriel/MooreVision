@@ -42,10 +42,12 @@ img = cv.imread(img_list[img_num])
 # Initial Focus Settings
 pos = [img.shape[1]//2, img.shape[0]//2]
 iterations = 4
-init_size = 64#256
+init_size = 256
 
 # Create Focus Object
-f = Focus(iter=iterations,pos=pos,mem=100)
+curve_mode = 0 # 
+curve_modes = 3 #[0 = Moore, 1 = Zigzag, 2 = ZIGZAG2, 3 = RxR]
+f = Focus(iter=iterations,pos=pos,mode=curve_mode,mem=100)
 f.set_size(init_size)
 
 # Create OpenCV Window
@@ -90,8 +92,9 @@ TARGET_FRAME_TIME = 1.0 / 25.0
 msg_every_n = 100   # avoid spamming console
 over_frametime = 0
 frame = 0
+frametimes = []
 reconstruct_n = 250
-size_inc = 2#8
+size_inc = 8#2#8
 move_inc = 10
 # delay = 50 #ms
 running = True
@@ -173,7 +176,9 @@ while running:
     #||                     KEYBOARD CONTROLS                          ||
     #||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
     compute_time = time.perf_counter() - start
-    
+    frametimes.insert(0,compute_time*1000)
+    if len(frametimes) > 10: frametimes = frametimes[0:9]
+
     wait_time = max(1,int(1000*(TARGET_FRAME_TIME - compute_time)))
     if wait_time == 1: 
         over_frametime += 1
@@ -230,7 +235,7 @@ while running:
         f_filter.len = len(f.coords)
         f_filter.gen_frequency_filter(filt_freq,filt_off)
     if k == ord('t'): # Increase Curve Iterations
-        if f.iterations < 7: # Arbitrary iteration cap (starts to get slow above 7)
+        if f.iterations < f.MAX_ITERATION: # Arbitrary iteration cap (starts to get slow above 7)
             f.set_iter(f.iterations+1)
             f_filter.len = len(f.coords)
             f_filter.gen_frequency_filter(filt_freq,filt_off)
@@ -267,15 +272,35 @@ while running:
     if k == ord('c'): # Show view map
         vt.print_states()
     if k == ord('v'): # Save N random view state
+        vt.clear_map()
         follow_mouse = False
         cv.setMouseCallback("VisionBeta",mouse_off)
         n_states = 10
-        for si in range(n_states):
+        while vt.get_num_views() < 10:
+        # for si in range(n_states):
             f.set_random_state()
             curve_img = f.draw(img)
+            cv.imshow("VisionBeta",curve_img)
             vt.add_view(img,f)
             vt.show_map()
+            time.sleep(0.1)
         vt.print_states()
+    if k == ord('b'): # Testing batch sampling
+        samples = f.sample_random_views(img,10)
+        vt.clear_map()
+        for s in samples:
+            f.set_state_normed([s["state"][0],s["state"][1]],[s["state"][2],s["state"][2]])
+            curve_img = f.draw(img)
+            cv.imshow("VisionBeta",curve_img)
+            vt.add_view(img,f)
+            vt.show_map()
+            time.sleep(0.1)
+    if k == ord('m'): # Cycle MODE
+        curve_mode = (curve_mode + 1) % curve_modes
+        new_iter = [f.iterations//2,2**f.iterations,f.iterations//2][curve_mode]
+        print(f"[CHANGED MODE]: {curve_mode} - Iter: {f.iterations} -> {new_iter}")
+        f.lsys_mode = curve_mode
+        f.set_iter(new_iter)
 
     # [DEPRECATED] Filter Control (Bottom Row) 
     # if k == ord('z'): # Toggle Filter On/Off
@@ -417,8 +442,10 @@ while running:
 
     # MANAGE PRINTOUTS
     if frame % msg_every_n == 0:
-    #     print("\n\n\n\n\n\n\n\n\n\n\n\n\n")
-    #     print("== Console Test")
+        # print("\n\n\n\n\n\n\n\n\n\n\n\n\n")
+        # print("== Console Test")
+        # print(f"Average Time: {np.mean(frametimes):.2f}ms (?)")
+        # print(f) # Print Focus Filter Info
         if over_frametime > 0: 
             print(f"WARN: Runtime below desired speed of {int(1/TARGET_FRAME_TIME)}fps for {over_frametime}/{msg_every_n} frames.")
             over_frametime = 0
