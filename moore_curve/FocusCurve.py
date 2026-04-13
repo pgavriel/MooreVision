@@ -89,7 +89,7 @@ class Focus:
         if self.k_size < 0: self.k_size = 0
         self.move_to(self.pos)
 
-    def set_state_normed(self,norm_pos,norm_size):
+    def set_state_normed(self,norm_pos,norm_size,verbose=True):
         size = [int(self.image_size[0]*norm_size[0]), int(self.image_size[1]*norm_size[1])]
         min_size = min(size) # NOTE: Not sure if it should me mean, min, or max, as it will influence the resulting distribution
         min_size += min_size % 2 # Ensure even number
@@ -97,7 +97,7 @@ class Focus:
 
         pos = [int(self.image_size[0]*norm_pos[0]), int(self.image_size[1]*norm_pos[1])]
         self.move_to(pos)
-        print(f"sz {size}->{self.size}    pos {pos}")
+        if verbose: print(f"sz {size}->{self.size}    pos {pos}")
     
     def set_random_state(self):
         size = [
@@ -111,7 +111,7 @@ class Focus:
         print(f"[Random] Size={size}   Pos={pos}")
         self.set_state_normed(pos,size)
 
-    def sample_random_views(self,image,n,normalize=True):
+    def sample_random_views(self,image,n,normalize=False):
         # Image shape/size info
         H, W, C = image.shape
         self.image_size = [W, H]
@@ -123,21 +123,24 @@ class Focus:
         # TODO: Validate states to avoid excessive overlap for similar scales?
         # TODO: Implement flag for different sampling methods
         states = np.random.uniform(0,1,size=(n,3))
-        print(f"State Shape: {states.shape}")
-        print(states)
+        # print(f"State Shape: {states.shape}")
+        # print(states)
 
         # Sample the image for all N views, create dict list(?) [{"state":[],"data":[]},{},...{}] 
-        samples = []
+        patches = []
+        final_states = []
         for state in states:
-            print(f"state: {state}")
-            self.set_state_normed([state[0],state[1]],[state[2],state[2]])
+            # print(f"state: {state}")
+            self.set_state_normed([state[0],state[1]],[state[2],state[2]],False)
             sample, _ = self.sample_image(image,draw_on=False)
-            s = [self.pos[0]/W, self.pos[1]/H,self.size/S]
-            samples.append({"state":s,"data":sample})
+            s = [self.pos[0]/W, self.pos[1]/H,self.size/S,1/(self.k_size+1)]
+            patches.append(sample)
+            final_states.append(s)
         # Return sampled view data
-        for s in samples:
-            print(f"{s['state']}")
-        return samples
+        # for s in samples:
+        #     print(f"{s['state']}")
+        # print(f"Sample shape: {patches[0].shape}")
+        return patches, final_states
 
     def sample_image(self,image,draw_on=False):
         if draw_on: 
