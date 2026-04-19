@@ -79,8 +79,8 @@ class Walker:
         self.rectify()
         # print(self.xrange, self.yrange)
         # print(self.coords)
-
-        print(self)
+        print("[L-Sys Walker Initiated]")
+        # print(self)
 
     def __str__(self):
         s = "LSysTurtle: Iterations: {}  StepSize: {}\n\t   Axiom: {}  Rules: {}".format(self.iterations,self.step_size,self.axiom,self.rules)
@@ -187,7 +187,7 @@ class Walker:
         xdiff = self.xrange[0] + xdiff
         ydiff = (self.yrange[1]-self.yrange[0])//2
         ydiff = self.yrange[0] + ydiff
-        print("xdiff: ",xdiff,"  ydiff: ",ydiff)
+        # print("xdiff: ",xdiff,"  ydiff: ",ydiff)
         # Offset all coordinates
         for coord in self.coords:
             coord[0] = coord[0] - xdiff

@@ -26,12 +26,14 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
+import torch.nn.functional as F
+from torch.utils.data import TensorDataset
 
 import torchvision
 import torchvision.transforms as T
 
 import matplotlib
-matplotlib.use("Agg")   # non-interactive backend, safe for servers
+# matplotlib.use("Agg")   # non-interactive backend, safe for servers
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -42,6 +44,7 @@ sys.path.insert(0, os.path.join(script_dir,".."))
 
 sys.path.insert(0, os.path.join(script_dir,"../moore_curve"))
 from moore_curve.FocusCurve import Focus
+from utils import *
 
 
 # =============================================================================
@@ -51,6 +54,7 @@ CONFIG = {
     # --- Paths ---
     "data_dir":           "./data",
     "output_dir":         "./runs",
+    "val_cache_path":         "./val_cache/moore1.pt",
 
     # --- Dataset ---
     "dataset":            "stl10",      # only stl10 supported here
@@ -99,10 +103,16 @@ CONFIG = {
     "seed":               42,
 
     # --- Logging ---
-    "print_every_n_steps": 20,          # print batch-level stats this often
+    "print_every_n_steps": 10,          # print batch-level stats this often
 }
 # =============================================================================
 
+# --- Focus Curve Global Declaration --- 
+f = Focus(iter=CONFIG["curve_iter"],pos=[0,0],mode=CONFIG["curve_mode"],mem=CONFIG["batch_size"])
+f.set_size(CONFIG["image_size"])
+coords_tensor = torch.tensor(f.coords, dtype=torch.float32)  # [256, 2] # Compute this only once
+
+FIRST_BATCH = True
 
 # =============================================================================
 # PATCH EXTRACTION — fill in your implementation here
@@ -138,84 +148,137 @@ def extract_patches_and_bboxes(
         - w, h are the width and height of the patch
         - Example: a patch covering the full image → (0.5, 0.5, 1.0, 1.0)
     """
-
+    global f, coords_tensor, FIRST_BATCH
     B, C, H, W = images.shape
-    patch_dim = CONFIG["patch_dim"]
+    BN = B * num_patches
 
-    # Initialize focus for batch image sampling
-    # TODO: Pass this in, maybe don't re-initialize it for every batch, this is just to see if it works
-    f = Focus(iter=CONFIG["curve_iter"],pos=[0,0],mode=CONFIG["curve_mode"],mem=B)
-    f.set_size(CONFIG["image_size"])
+    # 1. Sample and validate all states at once — fully vectorized, on CPU or GPU
+    valid_states = generate_validate_states_batched(BN,CONFIG["image_size"],f.walker.width,f.walker.step_size,f.min_size)
+    if FIRST_BATCH:
+        print(f"FIRST BATCH:\nUnique K_Sizes: {valid_states['k_size'].unique()}")
+        FIRST_BATCH = False
 
-    all_patches = []
-    all_states  = []
+    # 2. Transform curve coords for all BN patches at once
+    #    coords [256, 2] × scale [BN] + pos [BN, 2] → [BN, 256, 2]
+    pos   = valid_states["pos"].float()      # [BN, 2]
+    scale = valid_states["scale"]            # [BN]
+    coords_scaled = (
+        coords_tensor[None, :, :] * scale[:, None, None]  # [BN, 256, 2]
+        + pos[:, None, :]                                 # broadcast pos
+    )
+    # 3. Normalize to [-1, 1] for grid_sample
+    # coords_scaled is in pixel space [0, image_size]
+    grid = (coords_scaled / (image_size - 1)) * 2 - 1   # [BN, 256, 2]
+    grid = grid.unsqueeze(2)                            # [BN, 256, 1, 2]
 
-    for b in range(B):
-        img = images[b]
-        img_hwc = img.permute(1, 2, 0)
-        # print(f"img shape: {img_hwc.shape} , {type(img_hwc)}")
-        img_patches, img_states = f.sample_random_views(img_hwc,CONFIG["num_patches"])
-        """
+    # 4. Sample the image at all curve points
+    images_exp = images.repeat_interleave(num_patches, dim=0)  # [BN, C, H, W]
 
-        # for _ in range(num_patches):
-        #     # --- Sample a random patch size ---
-        #     scale = random.uniform(min_scale, max_scale)
-        #     ph = int(scale * H)
-        #     pw = int(scale * W)
-        #     ph = max(ph, 1)
-        #     pw = max(pw, 1)
+    sampled = F.grid_sample(
+        images_exp, grid,
+        mode="bilinear",
+        padding_mode="border",              # edge pixels clamp rather than zero-pad
+        align_corners=True,
+    )                                       # [BN, C, 256, 1]
+    sampled = sampled.squeeze(-1)           # [BN, C, 256]
 
-        #     # --- Sample a random top-left corner ---
-        #     top  = random.randint(0, H - ph)
-        #     left = random.randint(0, W - pw)
+    # 5. Apply variable kernel size sampling, reshape to final patch tensor
+    sampled = apply_variable_kernel(sampled, valid_states["k_size"])    # [BN, C, 256]
+    sampled = sampled.permute(0, 2, 1)                                  # [BN, 256, C]
+    patches = sampled.flatten(start_dim=1)                              # [BN, 768]
+    # Final patches tensor
+    patches = patches.reshape(B, num_patches, -1)                       # [B, N, 768]
 
-        #     # --- Compute normalized bbox (x_center, y_center, w, h) ---
-        #     x_center = (left + pw / 2) / W
-        #     y_center = (top  + ph / 2) / H
-        #     norm_w   = pw / W
-        #     norm_h   = ph / H
-        #     bbox = torch.tensor(
-        #         [x_center, y_center, norm_w, norm_h],
-        #         dtype=torch.float32
-        #     )
+    # 6. Build states tensor
+    # All values normalized to [0, 1] except 1/(ks+1) which is already in (0, 1]
+    pos_norm  = valid_states["pos"].float() / image_size        # [BN, 2]  x, y
+    size_norm = valid_states["size"].float() / image_size       # [BN]
+    ks_enc    = 1.0 / (valid_states["k_size"].float() + 1.0)   # [BN]  1/(ks+1)
 
-        #     # --- Extract the raw patch pixels ---
-        #     patch_pixels = images[b, :, top:top+ph, left:left+pw]
-        #     # patch_pixels shape: [3, ph, pw]
+    states = torch.stack([
+        pos_norm[:, 0],   # norm x
+        pos_norm[:, 1],   # norm y
+        size_norm,        # norm size
+        ks_enc,           # 1/(ks+1)
+    ], dim=-1)                                                   # [BN, 4]
 
-        #     # ----------------------------------------------------------------
-        #     # TODO: replace this placeholder with your patch encoder.
-        #     #
-        #     # Your encoder should accept `patch_pixels` [3, ph, pw] and return
-        #     # a 1D float tensor of shape [patch_dim].
-        #     #
-        #     # Example interface:
-        #     #   patch_vector = your_patch_encoder(patch_pixels)  # [patch_dim]
-        #     #
-        #     # For now we return a zero vector so the rest of the pipeline runs.
-        #     # ----------------------------------------------------------------
-        #     patch_vector = torch.zeros(patch_dim, dtype=torch.float32)
+    # Final states tensor
+    states = states.reshape(B, num_patches, 4)                  # [B, N, 4]
 
-        #     img_patches.append(patch_vector)
-        #     img_bboxes.append(bbox)
-        """
-        # Convert states: list of [4] → tensor [N, 4]
-        img_states_tensor = torch.tensor(img_states, dtype=torch.float32)
+    # OLD IMPLEMENTATION: (KEEP FOR NOW)
+    # all_patches = []
+    # all_states  = []
 
-        # Convert patches: list of (256, 3) numpy arrays → flatten → tensor [N, 768]
-        img_patches_tensor = torch.tensor(
-            np.stack(img_patches),          # [N, 256, 3]
-            dtype=torch.float32
-        ).flatten(start_dim=1)              # [N, 768]
-        # print("States min-max:",img_states_tensor.min(), img_states_tensor.max())
-        all_patches.append(img_patches_tensor)   # [N, patch_dim]
-        all_states.append(img_states_tensor)     # [N, 4]
+    # for b in range(B):
+    #     img = images[b]
+    #     img_hwc = img.permute(1, 2, 0)
+    #     # print(f"img shape: {img_hwc.shape} , {type(img_hwc)}")
+    #     img_patches, img_states = f.sample_random_views(img_hwc,CONFIG["num_patches"])
+        
+    #     # Convert states: list of [4] → tensor [N, 4]
+    #     img_states_tensor = torch.tensor(img_states, dtype=torch.float32)
 
-    patches = torch.stack(all_patches)     # [B, N, patch_dim]
-    states  = torch.stack(all_states)      # [B, N, 4]
+    #     # Convert patches: list of (256, 3) numpy arrays → flatten → tensor [N, 768]
+    #     img_patches_tensor = torch.tensor(
+    #         np.stack(img_patches),          # [N, 256, 3]
+    #         dtype=torch.float32
+    #     ).flatten(start_dim=1)              # [N, 768]
+    #     # print("States min-max:",img_states_tensor.min(), img_states_tensor.max())
+    #     all_patches.append(img_patches_tensor)   # [N, patch_dim]
+    #     all_states.append(img_states_tensor)     # [N, 4]
+
+    # patches = torch.stack(all_patches)     # [B, N, patch_dim]
+    # states  = torch.stack(all_states)      # [B, N, 4]
 
     return patches, states
 
+def precompute_val_views(
+    val_loader: DataLoader,
+    device: torch.device,
+    cache_path: str,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """
+    Returns precomputed (patches, states, labels) for the full validation set.
+    Saves to cache_path so it's identical across training runs.
+    """
+    global f, coords_tensor
+    if Path(cache_path).exists():
+        print(f"  Loading cached val views from {cache_path}")
+        cached = torch.load(cache_path)
+        return cached["patches"], cached["states"], cached["labels"]
+
+    print("  Precomputing validation views (once)...")
+    torch.manual_seed(CONFIG["seed"])    # deterministic across runs
+
+    all_patches, all_states, all_labels = [], [], []
+
+    with torch.no_grad():
+        for images, labels in val_loader:
+            images = images.to(device)
+            B = images.shape[0]
+            BN = B * CONFIG["num_patches"]
+
+            # valid      = generate_validate_states_batched(BN,CONFIG["image_size"],f.walker.width,f.walker.step_size,f.min_size)
+            patches, states = extract_patches_and_bboxes(
+                images,
+                num_patches=CONFIG["num_patches"],
+                min_scale=CONFIG["min_patch_scale"],
+                max_scale=CONFIG["max_patch_scale"],
+                image_size=CONFIG["image_size"],
+            )
+            all_patches.append(patches.cpu())
+            all_states.append(states.cpu())
+            all_labels.append(labels)
+
+    patches = torch.cat(all_patches)   # [N_val, N, patch_dim]
+    states  = torch.cat(all_states)    # [N_val, N, 4]
+    labels  = torch.cat(all_labels)    # [N_val]
+
+    Path(cache_path).parent.mkdir(parents=True, exist_ok=True)
+    torch.save({"patches": patches, "states": states, "labels": labels}, cache_path)
+    print(f"  Saved to {cache_path}")
+
+    return patches, states, labels
 
 # =============================================================================
 # DATASET WRAPPER
@@ -433,12 +496,12 @@ def run_epoch(
     with context:
         for step, (images, labels) in enumerate(loader):
             t0 = time.perf_counter()
-
+            
             images = images.to(device, non_blocking=True)
             labels = labels.to(device, non_blocking=True)
 
             # --- Extract patches and bboxes ---
-            patches, bboxes = extract_patches_and_bboxes(
+            patches, states = extract_patches_and_bboxes(
                 images,
                 num_patches=cfg["num_patches"],
                 min_scale=cfg["min_patch_scale"],
@@ -446,10 +509,10 @@ def run_epoch(
                 image_size=cfg["image_size"],
             )
             patches = patches.to(device, non_blocking=True)
-            bboxes  = bboxes.to(device,  non_blocking=True)
+            states  = states.to(device,  non_blocking=True)
 
             # --- Forward pass ---
-            logits = model(patches, bboxes)
+            logits = model(patches, states)
             loss   = criterion(logits, labels)
 
             # --- Backward pass ---
@@ -488,6 +551,38 @@ def run_epoch(
     accuracy  = 100.0 * total_correct / total_samples
     return mean_loss, accuracy
 
+def run_val_epoch(
+    model:      nn.Module,
+    loader:     DataLoader,    # yields (patches, states, labels)
+    criterion:  nn.Module,
+    device:     torch.device,
+    cfg:        dict,
+) -> tuple[float, float]:
+
+    model.eval()
+    total_loss, total_correct, total_samples = 0.0, 0, 0
+
+    with torch.no_grad():
+        for step, (patches, states, labels) in enumerate(loader):
+            patches = patches.to(device, non_blocking=True)
+            states  = states.to(device,  non_blocking=True)
+            labels  = labels.to(device,  non_blocking=True)
+
+            logits  = model(patches, states)
+            loss    = criterion(logits, labels)
+
+            total_correct += (logits.argmax(-1) == labels).sum().item()
+            total_loss    += loss.item() * labels.size(0)
+            total_samples += labels.size(0)
+
+            if (step + 1) % cfg["print_every_n_steps"] == 0:
+                print(
+                    f"    step [{step+1:>4}/{len(loader)}]  "
+                    f"loss {loss.item():.4f}  "
+                    f"acc {100.*total_correct/total_samples:5.1f}%"
+                )
+
+    return total_loss / total_samples, 100. * total_correct / total_samples
 
 # =============================================================================
 # CHECKPOINTING
@@ -536,6 +631,7 @@ def load_checkpoint(
 # =============================================================================
 
 def main():
+    global f, coords_tensor
     cfg = CONFIG
 
     # --- Reproducibility ---
@@ -555,10 +651,26 @@ def main():
     ckpt_dir  = run_dir / "checkpoints"
     ckpt_dir.mkdir(parents=True, exist_ok=True)
 
+    # --- Focus Curve --- 
+    coords_tensor = coords_tensor.to(device)
+    # example_states = generate_validate_states_batched(64*10,CONFIG["image_size"],f.walker.width,f.walker.step_size,f.min_size)
+    # plot_state_debug(example_states,CONFIG["image_size"],None)
+    # sys.exit()
+
     # --- Datasets & loaders ---
     print("\nLoading STL-10...")
     train_dataset = PatchDataset(cfg["data_dir"], split="train", augment=True)
     val_dataset   = PatchDataset(cfg["data_dir"], split="test",  augment=False)
+
+    # NOTE: THIS DEVIATES FROM THE 5k/8k split native to the dataset, after running experiments, maybe change it back for comparison
+    # Re-split 10k/3k
+    combined = torch.utils.data.ConcatDataset([train_dataset, val_dataset])
+    n_train = 10000
+    n_val   = len(combined) - n_train
+    train_dataset, val_dataset = torch.utils.data.random_split(
+        combined, [n_train, n_val],
+        generator=torch.Generator().manual_seed(42)
+    )
 
     train_loader = DataLoader(
         train_dataset,
@@ -578,6 +690,20 @@ def main():
     print(f"  Train: {len(train_dataset):,} images | Val: {len(val_dataset):,} images")
     print(f"  Steps per epoch: {len(train_loader)}")
 
+    # --- Precompute/load Val views ONCE before the training loop ---
+    print("\nPrecomputing validation views...")
+    val_patches, val_states, val_labels = precompute_val_views(
+        val_loader=val_loader,
+        device=device,
+        cache_path=cfg["val_cache_path"],
+    )
+    val_tensor_loader = DataLoader(
+        TensorDataset(val_patches, val_states, val_labels),
+        batch_size=cfg["batch_size"],
+        shuffle=False,
+        num_workers=0,       # already tensors in memory, workers add overhead
+        pin_memory=True,
+    )
     # --- Model ---
     model = MooreTransformer(
         num_classes=cfg["num_classes"],
@@ -635,9 +761,8 @@ def main():
 
         # Validate
         print("  [Val]")
-        val_loss, val_acc = run_epoch(
-            model, val_loader, optimizer, scheduler,
-            criterion, device, cfg, epoch, is_train=False
+        val_loss, val_acc = run_val_epoch(
+            model, val_tensor_loader, criterion, device, cfg
         )
 
         elapsed  = time.perf_counter() - t_start

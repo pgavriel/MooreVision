@@ -80,20 +80,20 @@ class Focus:
         self.enforce_bounds()
 
     # Set desired width of Focus in pixels
-    def set_size(self, size):
+    def set_size(self, size, and_move=True):
         self.last_size = self.size
         self.size = max(size,self.min_size)#max(size,16) # TODO: Make this dynamic based on iteration
         self.size = min(self.size, min(self.image_size[0],self.image_size[1]))
         self.scale = float(self.size) / float(self.walker.width)
         self.k_size = int((self.walker.step_size*self.scale)//2)
         if self.k_size < 0: self.k_size = 0
-        self.move_to(self.pos)
+        if and_move: self.move_to(self.pos)
 
     def set_state_normed(self,norm_pos,norm_size,verbose=True):
         size = [int(self.image_size[0]*norm_size[0]), int(self.image_size[1]*norm_size[1])]
         min_size = min(size) # NOTE: Not sure if it should me mean, min, or max, as it will influence the resulting distribution
         min_size += min_size % 2 # Ensure even number
-        self.set_size(min_size)
+        self.set_size(min_size,and_move=False)
 
         pos = [int(self.image_size[0]*norm_pos[0]), int(self.image_size[1]*norm_pos[1])]
         self.move_to(pos)
@@ -123,8 +123,6 @@ class Focus:
         # TODO: Validate states to avoid excessive overlap for similar scales?
         # TODO: Implement flag for different sampling methods
         states = np.random.uniform(0,1,size=(n,3))
-        # print(f"State Shape: {states.shape}")
-        # print(states)
 
         # Sample the image for all N views, create dict list(?) [{"state":[],"data":[]},{},...{}] 
         patches = []
@@ -164,7 +162,6 @@ class Focus:
             else:
                 avgcolor = image[y1,x1]
             # Assign average color to appropriate memory location
-            # self.mem_vis[0:2,i] = avgcolor
             sample[i] = avgcolor
 
             # Draw curve on the image
