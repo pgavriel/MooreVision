@@ -120,16 +120,13 @@ FIRST_BATCH = True
 
 def extract_patches_and_bboxes(
     images: torch.Tensor,
+    f: Focus,
     num_patches: int,
-    min_scale: float,
-    max_scale: float,
     image_size: int,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Extract N patches from each image and return their representations
     alongside normalized [cx, cx, size] information.
-
-    *** THIS IS A STUB — replace the body with your patch encoder. ***
 
     Args:
         images:      [B, 3, H, W]  normalized image batch
@@ -148,7 +145,7 @@ def extract_patches_and_bboxes(
         - w, h are the width and height of the patch
         - Example: a patch covering the full image → (0.5, 0.5, 1.0, 1.0)
     """
-    global f, coords_tensor, FIRST_BATCH
+    global coords_tensor, FIRST_BATCH
     B, C, H, W = images.shape
     BN = B * num_patches
 
@@ -261,9 +258,8 @@ def precompute_val_views(
             # valid      = generate_validate_states_batched(BN,CONFIG["image_size"],f.walker.width,f.walker.step_size,f.min_size)
             patches, states = extract_patches_and_bboxes(
                 images,
+                f,
                 num_patches=CONFIG["num_patches"],
-                min_scale=CONFIG["min_patch_scale"],
-                max_scale=CONFIG["max_patch_scale"],
                 image_size=CONFIG["image_size"],
             )
             all_patches.append(patches.cpu())
@@ -484,6 +480,7 @@ def run_epoch(
     Run one full pass over the dataset.
     Returns (mean_loss, accuracy_percent).
     """
+    global f
     model.train() if is_train else model.eval()
 
     total_loss    = 0.0
@@ -503,9 +500,8 @@ def run_epoch(
             # --- Extract patches and bboxes ---
             patches, states = extract_patches_and_bboxes(
                 images,
+                f,
                 num_patches=cfg["num_patches"],
-                min_scale=cfg["min_patch_scale"],
-                max_scale=cfg["max_patch_scale"],
                 image_size=cfg["image_size"],
             )
             patches = patches.to(device, non_blocking=True)
@@ -653,7 +649,7 @@ def main():
 
     # --- Focus Curve --- 
     coords_tensor = coords_tensor.to(device)
-    # example_states = generate_validate_states_batched(64*10,CONFIG["image_size"],f.walker.width,f.walker.step_size,f.min_size)
+    # example_states = generate_validate_states_batched(2500,CONFIG["image_size"],f.walker.width,f.walker.step_size,f.min_size)
     # plot_state_debug(example_states,CONFIG["image_size"],None)
     # sys.exit()
 
@@ -661,6 +657,10 @@ def main():
     print("\nLoading STL-10...")
     train_dataset = PatchDataset(cfg["data_dir"], split="train", augment=True)
     val_dataset   = PatchDataset(cfg["data_dir"], split="test",  augment=False)
+
+    # --- VISUALIZE DATASET SAMPLES:
+    # visualize_patch_samples(train_dataset,f,10,16)
+    # sys.exit()
 
     # NOTE: THIS DEVIATES FROM THE 5k/8k split native to the dataset, after running experiments, maybe change it back for comparison
     # Re-split 10k/3k
