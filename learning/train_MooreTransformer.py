@@ -604,8 +604,10 @@ def main():
     val_dataset   = PatchDataset(cfg["data_dir"], split="test",  augment=False)
 
     # --- VISUALIZE DATASET SAMPLES:
-    # visualize_patch_samples(train_dataset,f,10,16)
-    # sys.exit()
+    visualize_patch_samples2(train_dataset,f,8,16)
+    
+    visualize_patch_samples2(train_dataset,f,8,16)
+    sys.exit()
 
     # NOTE: THIS DEVIATES FROM THE 5k/8k split native to the dataset, after running experiments, maybe change it back for comparison
     # Re-split 10k/3k
