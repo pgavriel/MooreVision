@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from torch.utils.tensorboard import SummaryWriter
+# from torch.utils.tensorboard import SummaryWriter
 
 
 
@@ -243,9 +243,9 @@ if __name__ == "__main__":
     print(f"Input bboxes:   {bboxes.shape}")
     print(f"Output logits:  {logits.shape}")   # expect [4, 10]
 
-    writer = SummaryWriter('logs')
-    writer.add_graph(model, [patches,bboxes])
-    writer.close()
+    # writer = SummaryWriter('logs')
+    # writer.add_graph(model, [patches,bboxes])
+    # writer.close()
 
     # Test patch embedding extraction
     embeddings = model.get_patch_embeddings(patches, bboxes)

@@ -1,6 +1,18 @@
 import torch
 import torch.nn.functional as F
+import os 
 
+from pathlib import Path
+
+def create_incremental_dir(root, prefix="test", digits=3):
+    os.makedirs(root, exist_ok=True)  # Ensure root exists
+    i = 1
+    while True:
+        new_dir = os.path.join(root, f"{prefix}_{i:0{digits}}")
+        if not os.path.exists(new_dir):
+            os.makedirs(new_dir)
+            return new_dir
+        i += 1
 
 def apply_variable_kernel(
     sampled: torch.Tensor,      # [BN, C, 256]
@@ -326,6 +338,66 @@ def visualize_patch_samples(
         Path(save_path).parent.mkdir(parents=True, exist_ok=True)
         plt.savefig(save_path, dpi=150, bbox_inches="tight")
         print(f"Saved to {save_path}")
+    if show:
+        plt.show()
+    plt.close(fig)
+
+def plot_class_distribution(dataset, label: str = "Dataset", save_path: str = None, show: bool = True):
+    """
+    Plots the class distribution of a dataset as a bar chart.
+
+    Args:
+        dataset:    any dataset whose __getitem__ returns (image, label)
+        label:      title string for the plot
+        save_path:  if set, saves the figure here
+        show:       call plt.show() if True
+    """
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from collections import Counter
+
+    # Extract all labels — works for torchvision datasets and PatchDataset wrappers
+    if hasattr(dataset, "labels"):
+        labels = dataset.labels                         # torchvision STL10 / CIFAR
+    elif hasattr(dataset, "targets"):
+        labels = dataset.targets                        # some torchvision datasets
+    else:
+        print("Extracting labels by iterating dataset (may be slow)...")
+        labels = [dataset[i][1] for i in range(len(dataset))]
+        print("done.")
+
+    counts  = Counter(int(l) for l in labels)
+    classes = sorted(counts.keys())
+    values  = [counts[c] for c in classes]
+    print(values)
+
+    # Use class names if the dataset exposes them
+    class_names = getattr(dataset, "classes", None)
+    tick_labels = class_names if class_names else [str(c) for c in classes]
+
+    fig, ax = plt.subplots(figsize=(max(6, len(classes) * 0.8), 4))
+    bars = ax.bar(classes, values, color="#378ADD", edgecolor="none", width=0.6)
+
+    # Value annotations above each bar
+    for bar, val in zip(bars, values):
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + max(values) * 0.01,
+            str(val), ha="center", va="bottom", fontsize=9
+        )
+
+    ax.set_xticks(classes)
+    ax.set_xticklabels(tick_labels, rotation=30, ha="right", fontsize=9)
+    ax.set_ylabel("Count")
+    ax.set_title(label, fontsize=11, fontweight="bold")
+    ax.set_ylim(0, max(values) * 1.12)
+    ax.grid(axis="y", alpha=0.25)
+    ax.spines[["top", "right"]].set_visible(False)
+
+    plt.tight_layout()
+    if save_path:
+        Path(save_path).parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(save_path, dpi=120)
     if show:
         plt.show()
     plt.close(fig)

@@ -5,7 +5,8 @@ CONFIG = {
     # --- Paths ---
     "data_dir":           "./data",
     "output_dir":         "./runs",
-    "val_cache_path":         "./val_cache/moore1.pt",
+    "test_name_prefix":   "zz2_deep__n32_v32",
+    "val_cache_path":     "./val_cache/zz2_deep_n32.pt",
 
     # --- Dataset ---
     "dataset":            "stl10",      # only stl10 supported here
@@ -14,10 +15,10 @@ CONFIG = {
 
     # --- Patch sampling ---
     # Fill in your patch extraction logic in `extract_patches_and_bboxes` below.
-    "num_patches":        16,           # N patches sampled per image
+    "num_patches":        32,           # N patches sampled per image
     "patch_dim":          768,          # output dim of your patch encoder
-    "curve_iter":           4,          # Curve Iterations
-    "curve_mode":           0,          # [0 = Moore, 1 = Zigzag, 2 = ZIGZAG2, 3 = RxR]
+    "curve_iter":           8,          # Curve Iterations
+    "curve_mode":           2,          # [0 = Moore, 1 = Zigzag, 2 = ZIGZAG2, 3 = RxR]
 
     # Min/max patch size as a fraction of image_size.
     # e.g. 0.2 → smallest patch covers 20% of image width/height
@@ -27,7 +28,7 @@ CONFIG = {
     # --- Model ---
     "d_model":            256,
     "num_heads":          8,
-    "num_layers":         6,
+    "num_layers":         12,
     "ffn_dim":            1024,
     "dropout":            0.1,
 
@@ -47,13 +48,13 @@ CONFIG = {
     "min_lr":             1e-6,
 
     # --- Checkpointing ---
-    "save_every_n_epochs": 10,          # also saves best val acc automatically
+    "save_every_n_epochs": 20,          # also saves best val acc automatically
     "resume_from":        None,         # path to checkpoint to resume, or None
 
     # --- Reproducibility ---
     "seed":               42,
 
     # --- Logging ---
-    "print_every_n_steps": 10,          # print batch-level stats this often
+    "print_every_n_steps": 20,          # print batch-level stats this often
 }
 # =============================================================================

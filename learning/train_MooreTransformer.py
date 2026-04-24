@@ -14,6 +14,7 @@ Outputs (all written to CONFIG["output_dir"]):
 """
 
 import os
+os.environ["QT_QPA_PLATFORM"] = "offscreen"
 import sys
 import csv
 import time
@@ -51,6 +52,8 @@ from utils import *
 # CONFIG — all hyperparameters and settings in one place
 # =============================================================================
 from config import CONFIG
+# Create a unique output path for each run
+CONFIG["output_dir"] = create_incremental_dir(CONFIG["output_dir"],prefix=CONFIG["test_name_prefix"])
 
 # --- Focus Curve Global Declaration --- 
 f = Focus(iter=CONFIG["curve_iter"],pos=[0,0],mode=CONFIG["curve_mode"],mem=CONFIG["batch_size"])
@@ -68,6 +71,7 @@ def extract_patches_and_bboxes(
     f: Focus,
     num_patches: int,
     image_size: int,
+    device
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Extract N patches from each image and return their representations
@@ -102,10 +106,11 @@ def extract_patches_and_bboxes(
 
     # 2. Transform curve coords for all BN patches at once
     #    coords [256, 2] × scale [BN] + pos [BN, 2] → [BN, 256, 2]
-    pos   = valid_states["pos"].float()      # [BN, 2]
-    scale = valid_states["scale"]            # [BN]
+    pos   = valid_states["pos"].float().to(device)      # [BN, 2]
+    scale = valid_states["scale"].to(device)            # [BN]
+    # print(f"Coords: {coords_tensor.device}    Scale: {scale.device}   Pos: {pos.device}")
     coords_scaled = (
-        coords_tensor[None, :, :] * scale[:, None, None]  # [BN, 256, 2]
+        coords_tensor.to(device)[None, :, :] * scale[:, None, None]  # [BN, 256, 2]
         + pos[:, None, :]                                 # broadcast pos
     )
     # 3. Normalize to [-1, 1] for grid_sample
@@ -206,6 +211,7 @@ def precompute_val_views(
                 f,
                 num_patches=CONFIG["num_patches"],
                 image_size=CONFIG["image_size"],
+                device=device
             )
             all_patches.append(patches.cpu())
             all_states.append(states.cpu())
@@ -448,6 +454,7 @@ def run_epoch(
                 f,
                 num_patches=cfg["num_patches"],
                 image_size=cfg["image_size"],
+                device=device
             )
             patches = patches.to(device, non_blocking=True)
             states  = states.to(device,  non_blocking=True)
@@ -586,6 +593,7 @@ def main():
         "mps"   if torch.backends.mps.is_available() else
         "cpu"
     )
+    print(f"Using Device: {device}")
 
     # --- Output directories ---
     run_dir   = Path(cfg["output_dir"])
@@ -609,13 +617,17 @@ def main():
 
     # NOTE: THIS DEVIATES FROM THE 5k/8k split native to the dataset, after running experiments, maybe change it back for comparison
     # Re-split 10k/3k
-    combined = torch.utils.data.ConcatDataset([train_dataset, val_dataset])
-    n_train = 10000
-    n_val   = len(combined) - n_train
-    train_dataset, val_dataset = torch.utils.data.random_split(
-        combined, [n_train, n_val],
-        generator=torch.Generator().manual_seed(42)
-    )
+    # combined = torch.utils.data.ConcatDataset([train_dataset, val_dataset])
+    # n_train = 10000
+    # n_val   = len(combined) - n_train
+    # train_dataset, val_dataset = torch.utils.data.random_split(
+    #     combined, [n_train, n_val],
+    #     generator=torch.Generator().manual_seed(42)
+    # )
+    # DEBUG: Check dataset label distributions:
+    # plot_class_distribution(train_dataset, label="STL-10 Train Split",  save_path=None, show=False)
+    # plot_class_distribution(val_dataset,   label="STL-10 Val Split",    save_path=None, show=False)
+    # sys.exit()
 
     train_loader = DataLoader(
         train_dataset,
