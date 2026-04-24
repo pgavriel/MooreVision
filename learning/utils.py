@@ -1,6 +1,9 @@
 import torch
 import torch.nn.functional as F
-
+import csv
+import os
+from datetime import datetime
+from pathlib import Path
 
 def apply_variable_kernel(
     sampled: torch.Tensor,      # [BN, C, 256]
@@ -500,3 +503,107 @@ def visualize_patch_samples2(
     if show:
         plt.show()
     plt.close(fig)
+
+    
+
+
+def log_experiment(
+    filepath:   str,
+    data:       dict,
+    headers:    list = None,
+):
+    """
+    Appends a single experiment result row to a master CSV log.
+    Creates the file with a header row if it does not already exist.
+
+    Args:
+        filepath:  path to the master CSV log file
+        data:      dict mapping header names to values for this run.
+                   Missing keys are written as empty strings.
+                   Extra keys not in headers are silently ignored.
+        headers:   list of column names. If None, DEFAULT_HEADERS is used.
+                   Only relevant when creating a new file — existing files
+                   retain whatever headers they were created with.
+
+    Example:
+        log_experiment(
+            filepath = "./runs/master_log.csv",
+            data = {
+                "run_name":     "moore_n16_d256_run1",
+                "model":        "MooreTransformer",
+                "patch_method": "moore_curve",
+                "num_patches":  16,
+                "best_val_acc": 57.3,
+                "notes":        "baseline, no mixup",
+                **{k: CONFIG[k] for k in [
+                    "patch_dim","image_size","epochs","d_model",
+                    "num_heads","num_layers","ffn_dim","dropout",
+                    "batch_size","lr","weight_decay","warmup_epochs",
+                ]},
+            },
+        )
+    """
+    DEFAULT_HEADERS = [
+        "timestamp",
+        "run_name",
+        "model",
+        "patch_sampling_method", # How view tokens are obtained      
+        "num_patches",        # N patches per image (or num grid patches for ViT)
+        "patch_representation", # e.g. "moore_curve", "vanilla_vit", "random_crop"
+        "patch_dim",          # flattened patch vector length
+        "epochs",
+        "d_model",
+        "num_heads",
+        "num_layers",
+        "ffn_dim",
+        "dropout",
+        "batch_size",
+        "lr",
+        "weight_decay",
+        "warmup_epochs",
+        "train_split",        # e.g. 10000 or "official_5k"
+        "val_split",          # e.g. 3000 or "official_8k"
+        "best_val_acc",
+        "final_val_acc",
+        "best_epoch",
+        "total_params",
+        "notes",              # free text for anything not captured above
+    ]
+    path = Path(filepath)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Determine which headers to use
+    if headers is None:
+        headers = DEFAULT_HEADERS
+
+    # Read existing headers from file if it already exists,
+    # so we don't clobber a file created with a different header set
+    if path.exists():
+        with open(path, "r", newline="") as f:
+            reader = csv.reader(f)
+            existing_headers = next(reader, None)
+        if existing_headers:
+            headers = existing_headers
+
+    file_exists = path.exists()
+
+    with open(path, "a", newline="") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=headers,
+            extrasaction="ignore",      # silently drop keys not in headers
+        )
+
+        # Write header row only when creating the file for the first time
+        if not file_exists:
+            writer.writeheader()
+
+        # Fill in timestamp automatically if not provided
+        row = {"timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+        row.update(data)
+
+        # Ensure all fields have a value — missing ones become empty string
+        complete_row = {h: row.get(h, "") for h in headers}
+        writer.writerow(complete_row)
+
+    print(f"  Logged experiment to {path}  ({data.get('run_name', '?')})")

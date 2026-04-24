@@ -45,8 +45,8 @@ iterations = 4
 init_size = 256
 
 # Create Focus Object
-curve_mode = 0 # 
-curve_modes = 3 #[0 = Moore, 1 = Zigzag, 2 = ZIGZAG2, 3 = RxR]
+curve_mode = 3 # 
+curve_modes = 4 #[0 = Moore, 1 = Zigzag, 2 = ZIGZAG2, 3 = RxR]
 f = Focus(iter=iterations,pos=pos,mode=curve_mode,mem=100)
 f.set_size(init_size)
 
@@ -297,7 +297,7 @@ while running:
             time.sleep(0.1)
     if k == ord('m'): # Cycle MODE
         curve_mode = (curve_mode + 1) % curve_modes
-        new_iter = [f.iterations//2,2**f.iterations,f.iterations//2][curve_mode]
+        new_iter = [f.iterations//4,2**f.iterations,f.iterations//2,f.iterations*2][curve_mode]
         print(f"[CHANGED MODE]: {curve_mode} - Iter: {f.iterations} -> {new_iter}")
         f.lsys_mode = curve_mode
         f.set_iter(new_iter)

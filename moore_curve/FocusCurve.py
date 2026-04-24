@@ -322,12 +322,20 @@ class Focus:
             if new_method: # Prettier
                 nx = self.coords[i][0]
                 ny = self.coords[i][1]
-                if nx > lx: lx = nx; x = x + (ks*2) # Curve +X
-                elif nx < lx: lx = nx; x = x - (ks*2)# Curve -X
-                else: lx = nx
-                if ny > ly: ly = ny; y = y + (ks*2)# Curve +Y
-                elif ny < ly: ly = ny; y = y - (ks*2)# Curve -Y
-                else: ly = ny
+                if self.lsys_mode == 3: # RXR MODE
+                    if nx > lx: lx = nx; x = x + (ks*2) # Curve +X
+                    elif nx < lx: lx = nx; x = (self.walker.origin[0]) * ks# Curve -X - go back to start
+                    else: lx = nx
+                    if ny > ly: ly = ny; y = y + (ks*2)# Curve +Y
+                    elif ny < ly: ly = ny; y = y - (ks*2)# Curve -Y
+                    else: ly = ny
+                else: # All other modes, expects adjacent curve points
+                    if nx > lx: lx = nx; x = x + (ks*2) # Curve +X
+                    elif nx < lx: lx = nx; x = x - (ks*2)# Curve -X
+                    else: lx = nx
+                    if ny > ly: ly = ny; y = y + (ks*2)# Curve +Y
+                    elif ny < ly: ly = ny; y = y - (ks*2)# Curve -Y
+                    else: ly = ny
                 # print(f"S: [{s}], XYK: [{x},{y},{ks}] Index: [Y={y-ks}:{y+ks},X={x-ks}:{x+ks}] Shape: {recon_img.shape}")
                 recon_img[y-ks:y+ks,x-ks:x+ks] = painter
             else: #Old method, uglier, but shows black pixels that are tecnically missing in the representation, may be needed for debug later

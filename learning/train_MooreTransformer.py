@@ -604,10 +604,9 @@ def main():
     val_dataset   = PatchDataset(cfg["data_dir"], split="test",  augment=False)
 
     # --- VISUALIZE DATASET SAMPLES:
-    visualize_patch_samples2(train_dataset,f,8,16)
-    
-    visualize_patch_samples2(train_dataset,f,8,16)
-    sys.exit()
+    # visualize_patch_samples2(train_dataset,f,8,16)
+    # visualize_patch_samples2(train_dataset,f,8,16)
+    # sys.exit()
 
     # NOTE: THIS DEVIATES FROM THE 5k/8k split native to the dataset, after running experiments, maybe change it back for comparison
     # Re-split 10k/3k
@@ -675,6 +674,7 @@ def main():
 
     # --- Resume from checkpoint if specified ---
     start_epoch  = 1
+    best_epoch = start_epoch
     best_val_acc = 0.0
     if cfg["resume_from"] is not None:
         start_epoch, best_val_acc = load_checkpoint(
@@ -718,6 +718,7 @@ def main():
 
         if is_best:
             best_val_acc = val_acc
+            best_epoch = epoch
             save_checkpoint(
                 str(ckpt_dir / "best_model.pt"),
                 epoch, model, optimizer, scheduler, best_val_acc, cfg
@@ -758,7 +759,29 @@ def main():
     print(f"  Log:               {logger.csv_path}")
     print(f"  Plots:             {logger.plot_dir}")
     print("=" * 65 + "\n")
-
+ 
+    log_experiment(
+            filepath = CONFIG["master_log"],
+            data = {
+                "run_name":    CONFIG["test_name"],
+                "model":        "MooreTransformer",
+                "patch_sampling_method": "Dynamic Random Uniform",
+                "num_patches":  CONFIG["num_patches"],
+                "patch_representation": ["Moore (i=4)","ZZ1","ZZ2 (i=8)","RxR (i=16)"][CONFIG["curve_mode"]],
+                "best_val_acc": best_val_acc,
+                "final_val_acc": metrics["val_acc"],
+                "best_epoch": best_epoch,
+                "train_split": len(train_dataset),
+                "val_split": len(val_dataset),
+                "total_params": sum(p.numel() for p in model.parameters()),
+                "notes":        CONFIG["test_note"],
+                **{k: CONFIG[k] for k in [
+                    "patch_dim","epochs","d_model",
+                    "num_heads","num_layers","ffn_dim","dropout",
+                    "batch_size","lr","weight_decay","warmup_epochs",
+                ]},
+            },
+        )
 
 if __name__ == "__main__":
     main()
