@@ -239,12 +239,12 @@ if __name__ == "__main__":
     bboxes = torch.rand(B, N, 4)
 
     logits = model(patches, bboxes)
-    print(f"Input patches:  {patches.shape}")
-    print(f"Input bboxes:   {bboxes.shape}")
+    print(f"Input patches:  {patches.shape} ({type(patches)})")
+    print(f"Input bboxes:   {bboxes.shape} ({type(bboxes)})")
     print(f"Output logits:  {logits.shape}")   # expect [4, 10]
 
     # writer = SummaryWriter('logs')
-    # writer.add_graph(model, [patches,bboxes])
+    # writer.add_graph(model, (patches,bboxes))
     # writer.close()
 
     # Test patch embedding extraction

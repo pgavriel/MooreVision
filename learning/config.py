@@ -3,10 +3,12 @@
 # =============================================================================
 CONFIG = {
     # --- Paths ---
-    "data_dir":           "./data",
-    "output_dir":         "./runs",
-    "test_name_prefix":   "zz2_deep__n32_v32",
-    "val_cache_path":     "./val_cache/zz2_deep_n32.pt",
+    "data_dir":             "./data",
+    "output_dir":           "./runs",
+    "val_cache_path":       "./val_cache/moore1.pt",
+    "master_log":           "./runs/master_log.csv",
+    "test_name":            "moore1",
+    "test_note":            " - ",
 
     # --- Dataset ---
     "dataset":            "stl10",      # only stl10 supported here
@@ -17,8 +19,8 @@ CONFIG = {
     # Fill in your patch extraction logic in `extract_patches_and_bboxes` below.
     "num_patches":        32,           # N patches sampled per image
     "patch_dim":          768,          # output dim of your patch encoder
-    "curve_iter":           8,          # Curve Iterations
-    "curve_mode":           2,          # [0 = Moore, 1 = Zigzag, 2 = ZIGZAG2, 3 = RxR]
+    "curve_iter":           4,          # Curve Iterations
+    "curve_mode":           0,          # [0 = Moore[i=4], 1 = Zigzag, 2 = ZIGZAG2[i=8], 3 = RxR[i=16]]
 
     # Min/max patch size as a fraction of image_size.
     # e.g. 0.2 → smallest patch covers 20% of image width/height
@@ -33,7 +35,7 @@ CONFIG = {
     "dropout":            0.1,
 
     # --- Training ---
-    "epochs":             100,
+    "epochs":             1,
     "batch_size":         64,
     "num_workers":        4,
 

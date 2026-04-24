@@ -1,5 +1,9 @@
 import torch
 import torch.nn.functional as F
+import csv
+import os
+from datetime import datetime
+from pathlib import Path
 import os 
 
 from pathlib import Path
@@ -341,6 +345,281 @@ def visualize_patch_samples(
     if show:
         plt.show()
     plt.close(fig)
+
+def visualize_patch_samples2(
+    dataset,
+    f:              Focus,
+    n_images:       int = 4,
+    m_patches:      int = 8,
+    save_path:      str = None,
+    show:           bool = True,
+):
+    import cv2
+    import random
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import math
+    from pathlib import Path
+    from train_MooreTransformer import extract_patches_and_bboxes
+
+    MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+    STD  = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+
+    STL10_CLASSES = ["airplane","bird","car","cat","deer","dog","horse","monkey","ship","truck"]
+
+    def denormalize(tensor):
+        img = tensor.cpu().numpy().transpose(1, 2, 0)
+        img = np.clip(img * STD + MEAN, 0.0, 1.0)
+        return (img * 255).astype(np.uint8)
+
+    indices = random.sample(range(len(dataset)), n_images)
+
+    def patch_colors(n):
+        return [tuple(int(c*255) for c in plt.cm.hsv(i / n)[:3]) for i in range(n)]
+
+    colors = patch_colors(m_patches)
+
+    PATCH_DISPLAY_SIZE = 96
+    BORDER             = 2
+    TILE               = PATCH_DISPLAY_SIZE + BORDER * 2    # single patch tile size
+    LABEL_BAR          = 20                                 # px height for class label text
+
+    # Original image is displayed at 2x tile size
+    ORIG_DISPLAY_SIZE  = TILE * 2                           # e.g. 200px square
+    ORIG_WITH_LABEL    = ORIG_DISPLAY_SIZE + LABEL_BAR      # original + label bar height
+
+    # patches_per_row — split m_patches evenly across 2 rows, rounding up for row 0
+    patches_per_row = math.ceil(m_patches / 2)
+    strip_w = patches_per_row * TILE                        # width of patch strip
+
+    row_images = []
+
+    for idx in indices:
+        image_tensor, label = dataset[idx]
+        label_name = STL10_CLASSES[label] if label < len(STL10_CLASSES) else str(label)
+
+        img_hw   = denormalize(image_tensor)
+        img_h, img_w = img_hw.shape[:2]
+        img_size = min(img_h, img_w)
+
+        # --- Extract patches ---
+        patches, states = extract_patches_and_bboxes(
+            image_tensor.unsqueeze(0), f,
+            num_patches=m_patches, image_size=img_size,
+        )
+        patches_np = patches.squeeze(0).cpu().numpy()   # [M, 768]
+        states     = states.squeeze(0).cpu().numpy()    # [M, 4]
+
+        patch_views = []
+        for p in range(m_patches):
+            view = patches_np[p].reshape(256, 3)
+            view = np.clip(view * STD + MEAN, 0.0, 1.0)
+            view = (view * 255).astype(np.uint8)
+            # view = view[:, ::-1]                        # RGB → BGR
+            patch_views.append(view)
+
+        # --- Annotated original image ---
+        img_annotated = img_hw.copy()
+        for p in range(m_patches):
+            cx   = states[p, 0] * img_w
+            cy   = states[p, 1] * img_h
+            size = states[p, 2] * img_size
+            half = size / 2
+            x1, y1 = int(cx - half), int(cy - half)
+            x2, y2 = int(cx + half), int(cy + half)
+            r, g, b = colors[p]
+            cv2.rectangle(img_annotated, (x1, y1), (x2, y2), (b, g, r), thickness=1)
+            # cv2.putText(img_annotated, str(p), (max(x1+2, 0), max(y1+12, 0)),
+            #             cv2.FONT_HERSHEY_SIMPLEX, 0.35, (b, g, r), 1, cv2.LINE_AA)
+
+        # Resize original to ORIG_DISPLAY_SIZE × ORIG_DISPLAY_SIZE
+        orig_resized = cv2.resize(img_annotated,
+                                  (ORIG_DISPLAY_SIZE, ORIG_DISPLAY_SIZE),
+                                  interpolation=cv2.INTER_LINEAR)
+
+        # Add label bar below original image
+        label_bar = np.full((LABEL_BAR, ORIG_DISPLAY_SIZE, 3), 30, dtype=np.uint8)
+        cv2.putText(label_bar, label_name,
+                    (4, LABEL_BAR - 5),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.45,
+                    (200, 200, 200), 1, cv2.LINE_AA)
+        orig_block = np.concatenate([orig_resized, label_bar], axis=0)  # [ORIG_WITH_LABEL, ORIG_DISPLAY_SIZE, 3]
+
+        # --- Build patch rows ---
+        def build_patch_row(patch_indices):
+            thumbs = []
+            for p in patch_indices:
+                view_img = f.reconstruct(custom_mem=patch_views[p])
+                thumb    = cv2.resize(view_img, (PATCH_DISPLAY_SIZE, PATCH_DISPLAY_SIZE),
+                                      interpolation=None)
+                r, g, b  = colors[p]
+                thumb    = cv2.copyMakeBorder(thumb, BORDER, BORDER, BORDER, BORDER,
+                                              cv2.BORDER_CONSTANT, value=(b, g, r))
+                thumbs.append(thumb)
+
+            # Pad row to patches_per_row tiles if the last row is short
+            while len(thumbs) < patches_per_row:
+                thumbs.append(np.full((TILE, TILE, 3), 30, dtype=np.uint8))
+
+            return np.concatenate(thumbs, axis=1)   # [TILE, strip_w, 3]
+
+        row0_indices = list(range(0, patches_per_row))
+        row1_indices = list(range(patches_per_row, m_patches))
+
+        patch_row0 = build_patch_row(row0_indices)   # [TILE, strip_w, 3]
+        patch_row1 = build_patch_row(row1_indices)   # [TILE, strip_w, 3]
+
+        # Stack the two patch rows — total height is 2*TILE
+        patch_block = np.concatenate([patch_row0, patch_row1], axis=0)  # [2*TILE, strip_w, 3]
+
+        # Pad patch_block height to match orig_block (ORIG_WITH_LABEL) if needed
+        h_diff = ORIG_WITH_LABEL - patch_block.shape[0]
+        if h_diff > 0:
+            pad = np.full((h_diff, strip_w, 3), 30, dtype=np.uint8)
+            patch_block = np.concatenate([patch_block, pad], axis=0)
+        elif h_diff < 0:
+            # orig_block is shorter — pad it downward (shouldn't normally happen)
+            pad = np.full((-h_diff, ORIG_DISPLAY_SIZE, 3), 30, dtype=np.uint8)
+            orig_block = np.concatenate([orig_block, pad], axis=0)
+
+        # Separator between original and patches
+        sep = np.full((orig_block.shape[0], 3, 3), 60, dtype=np.uint8)
+        row = np.concatenate([orig_block, sep, patch_block], axis=1)
+        row_images.append(row)
+
+    # Pad all rows to same width and vstack with gap
+    max_w = max(r.shape[1] for r in row_images)
+    padded_rows = [
+        cv2.copyMakeBorder(r, 0, 0, 0, max_w - r.shape[1],
+                           cv2.BORDER_CONSTANT, value=(30, 30, 30))
+        for r in row_images
+    ]
+    gap   = np.full((3, max_w, 3), 45, dtype=np.uint8)
+    final = padded_rows[0]
+    for row in padded_rows[1:]:
+        final = np.concatenate([final, gap, row], axis=0)
+
+    fig_w = max_w / 96
+    fig_h = final.shape[0] / 96
+    fig, ax = plt.subplots(figsize=(max(fig_w, 10), max(fig_h, 3)))
+    ax.imshow(final)
+    ax.axis("off")
+    ax.set_title(
+        f"Row by Row Curve Patch sampling visualization  —  {n_images} images × {m_patches} patches",
+        fontsize=11, pad=8,
+    )
+    plt.tight_layout()
+    if save_path:
+        Path(save_path).parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        print(f"Saved to {save_path}")
+    if show:
+        plt.show()
+    plt.close(fig)
+
+    
+
+
+def log_experiment(
+    filepath:   str,
+    data:       dict,
+    headers:    list = None,
+):
+    """
+    Appends a single experiment result row to a master CSV log.
+    Creates the file with a header row if it does not already exist.
+
+    Args:
+        filepath:  path to the master CSV log file
+        data:      dict mapping header names to values for this run.
+                   Missing keys are written as empty strings.
+                   Extra keys not in headers are silently ignored.
+        headers:   list of column names. If None, DEFAULT_HEADERS is used.
+                   Only relevant when creating a new file — existing files
+                   retain whatever headers they were created with.
+
+    Example:
+        log_experiment(
+            filepath = "./runs/master_log.csv",
+            data = {
+                "run_name":     "moore_n16_d256_run1",
+                "model":        "MooreTransformer",
+                "patch_method": "moore_curve",
+                "num_patches":  16,
+                "best_val_acc": 57.3,
+                "notes":        "baseline, no mixup",
+                **{k: CONFIG[k] for k in [
+                    "patch_dim","image_size","epochs","d_model",
+                    "num_heads","num_layers","ffn_dim","dropout",
+                    "batch_size","lr","weight_decay","warmup_epochs",
+                ]},
+            },
+        )
+    """
+    DEFAULT_HEADERS = [
+        "timestamp",
+        "run_name",
+        "model",
+        "patch_sampling_method", # How view tokens are obtained      
+        "num_patches",        # N patches per image (or num grid patches for ViT)
+        "patch_representation", # e.g. "moore_curve", "vanilla_vit", "random_crop"
+        "patch_dim",          # flattened patch vector length
+        "epochs",
+        "d_model",
+        "num_heads",
+        "num_layers",
+        "ffn_dim",
+        "dropout",
+        "batch_size",
+        "lr",
+        "weight_decay",
+        "warmup_epochs",
+        "train_split",        # e.g. 10000 or "official_5k"
+        "val_split",          # e.g. 3000 or "official_8k"
+        "best_val_acc",
+        "final_val_acc",
+        "best_epoch",
+        "total_params",
+        "notes",              # free text for anything not captured above
+    ]
+    path = Path(filepath)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Determine which headers to use
+    if headers is None:
+        headers = DEFAULT_HEADERS
+
+    # Read existing headers from file if it already exists,
+    # so we don't clobber a file created with a different header set
+    if path.exists():
+        with open(path, "r", newline="") as f:
+            reader = csv.reader(f)
+            existing_headers = next(reader, None)
+        if existing_headers:
+            headers = existing_headers
+
+    file_exists = path.exists()
+
+    with open(path, "a", newline="") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=headers,
+            extrasaction="ignore",      # silently drop keys not in headers
+        )
+
+        # Write header row only when creating the file for the first time
+        if not file_exists:
+            writer.writeheader()
+
+        # Fill in timestamp automatically if not provided
+        row = {"timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+        row.update(data)
+
+        # Ensure all fields have a value — missing ones become empty string
+        complete_row = {h: row.get(h, "") for h in headers}
+        writer.writerow(complete_row)
+
+    print(f"  Logged experiment to {path}  ({data.get('run_name', '?')})")
 
 def plot_class_distribution(dataset, label: str = "Dataset", save_path: str = None, show: bool = True):
     """
