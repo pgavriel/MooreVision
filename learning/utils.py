@@ -4,9 +4,6 @@ import csv
 import os
 from datetime import datetime
 from pathlib import Path
-import os 
-
-from pathlib import Path
 
 def create_incremental_dir(root, prefix="test", digits=3):
     os.makedirs(root, exist_ok=True)  # Ensure root exists
@@ -53,12 +50,13 @@ def generate_validate_states_batched(
     walker_width: int,          # focus.walker.width
     walker_step_size: float,    # focus.walker.step_size
     min_size: int,              # focus.min_size
+    device
 ) -> dict:
     """
     Vectorized equivalent of set_state_normed → set_size → move_to → enforce_bounds.
     Returns a dict of validated state tensors, all shape [BN].
     """
-    raw_states    = torch.rand(num_states, 3)
+    raw_states    = torch.rand(num_states, 3,device=device)
 
     norm_pos  = raw_states[:, :2]   # [BN, 2]
     norm_size = raw_states[:, 2]    # [BN]

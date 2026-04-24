@@ -53,14 +53,15 @@ from utils import *
 # =============================================================================
 from config import CONFIG
 # Create a unique output path for each run
-CONFIG["output_dir"] = create_incremental_dir(CONFIG["output_dir"],prefix=CONFIG["test_name_prefix"])
+CONFIG["output_dir"] = create_incremental_dir(CONFIG["output_dir"],prefix=CONFIG["test_name"])
+CONFIG["test_name"] = Path(CONFIG["output_dir"]).name
 
 # --- Focus Curve Global Declaration --- 
 f = Focus(iter=CONFIG["curve_iter"],pos=[0,0],mode=CONFIG["curve_mode"],mem=CONFIG["batch_size"])
 f.set_size(CONFIG["image_size"])
 coords_tensor = torch.tensor(f.coords, dtype=torch.float32)  # [256, 2] # Compute this only once
 
-FIRST_BATCH = True
+PRINT_FIRST_N = 5
 
 # =============================================================================
 # PATCH EXTRACTION — fill in your implementation here
@@ -94,16 +95,17 @@ def extract_patches_and_bboxes(
         - w, h are the width and height of the patch
         - Example: a patch covering the full image → (0.5, 0.5, 1.0, 1.0)
     """
-    global coords_tensor, FIRST_BATCH
+    global coords_tensor, PRINT_FIRST_N
     B, C, H, W = images.shape
     BN = B * num_patches
 
     # 1. Sample and validate all states at once — fully vectorized, on CPU or GPU
-    valid_states = generate_validate_states_batched(BN,CONFIG["image_size"],f.walker.width,f.walker.step_size,f.min_size)
-    if FIRST_BATCH:
-        print(f"FIRST BATCH:\nUnique K_Sizes: {valid_states['k_size'].unique()}")
-        FIRST_BATCH = False
-
+    valid_states = generate_validate_states_batched(BN,CONFIG["image_size"],f.walker.width,f.walker.step_size,f.min_size,device)
+    if PRINT_FIRST_N > 0:
+        # print(f"FIRST BATCH:\nUnique K_Sizes: {valid_states['k_size'].unique()}")
+        print(f"RNG state sum: {torch.cuda.get_rng_state().sum().item()}")
+        print(f"[B{PRINT_FIRST_N}] Sizes: {valid_states['scale'][:5]}")
+        PRINT_FIRST_N = PRINT_FIRST_N - 1
     # 2. Transform curve coords for all BN patches at once
     #    coords [256, 2] × scale [BN] + pos [BN, 2] → [BN, 256, 2]
     pos   = valid_states["pos"].float().to(device)      # [BN, 2]
@@ -431,9 +433,10 @@ def run_epoch(
     Run one full pass over the dataset.
     Returns (mean_loss, accuracy_percent).
     """
-    global f
+    global f, PRINT_FIRST_N
+    PRINT_FIRST_N = 5
     model.train() if is_train else model.eval()
-
+    print(f"[EPOCH {epoch} START] RNG state sum: {torch.cuda.get_rng_state().sum().item()}")
     total_loss    = 0.0
     total_correct = 0
     total_samples = 0
@@ -618,13 +621,13 @@ def main():
 
     # NOTE: THIS DEVIATES FROM THE 5k/8k split native to the dataset, after running experiments, maybe change it back for comparison
     # Re-split 10k/3k
-    # combined = torch.utils.data.ConcatDataset([train_dataset, val_dataset])
-    # n_train = 10000
-    # n_val   = len(combined) - n_train
-    # train_dataset, val_dataset = torch.utils.data.random_split(
-    #     combined, [n_train, n_val],
-    #     generator=torch.Generator().manual_seed(42)
-    # )
+    combined = torch.utils.data.ConcatDataset([train_dataset, val_dataset])
+    n_train = 10000
+    n_val   = len(combined) - n_train
+    train_dataset, val_dataset = torch.utils.data.random_split(
+        combined, [n_train, n_val],
+        generator=torch.Generator().manual_seed(42)
+    )
     # DEBUG: Check dataset label distributions:
     # plot_class_distribution(train_dataset, label="STL-10 Train Split",  save_path=None, show=False)
     # plot_class_distribution(val_dataset,   label="STL-10 Val Split",    save_path=None, show=False)
