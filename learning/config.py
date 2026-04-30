@@ -5,10 +5,10 @@ CONFIG = {
     # --- Paths ---
     "data_dir":             "./data",
     "output_dir":           "./runs",
-    "val_cache_path":       "./val_cache/moore1.pt",
+    "val_cache_path":       "./val_cache/rxr-n36-10k.pt",
     "master_log":           "./runs/master_log.csv",
-    "test_name":            "moore1",
-    "test_note":            " - ",
+    "test_name":            "rng_test",
+    "test_note":            "Initial run - 10:3 split",
 
     # --- Dataset ---
     "dataset":            "stl10",      # only stl10 supported here
@@ -17,7 +17,7 @@ CONFIG = {
 
     # --- Patch sampling ---
     # Fill in your patch extraction logic in `extract_patches_and_bboxes` below.
-    "num_patches":        16,           # N patches sampled per image
+    "num_patches":        36,           # N patches sampled per image
     "patch_dim":          768,          # output dim of your patch encoder
     "curve_iter":           16,          # Curve Iterations
     "curve_mode":           3,          # [0 = Moore[i=4], 1 = Zigzag, 2 = ZIGZAG2[i=8], 3 = RxR[i=16]]
@@ -30,12 +30,12 @@ CONFIG = {
     # --- Model ---
     "d_model":            256,
     "num_heads":          8,
-    "num_layers":         6,
+    "num_layers":         12,
     "ffn_dim":            1024,
     "dropout":            0.1,
 
     # --- Training ---
-    "epochs":             1,
+    "epochs":             100,
     "batch_size":         64,
     "num_workers":        4,
 
@@ -50,7 +50,7 @@ CONFIG = {
     "min_lr":             1e-6,
 
     # --- Checkpointing ---
-    "save_every_n_epochs": 10,          # also saves best val acc automatically
+    "save_every_n_epochs": 20,          # also saves best val acc automatically
     "resume_from":        None,         # path to checkpoint to resume, or None
 
     # --- Reproducibility ---

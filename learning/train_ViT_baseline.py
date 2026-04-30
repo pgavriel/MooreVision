@@ -20,6 +20,7 @@ ViT-specific CONFIG additions (see VIT_CONFIG below):
 """
 
 import os
+import sys
 import csv
 import time
 import math
@@ -40,7 +41,11 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+script_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, script_dir)
+sys.path.insert(0, os.path.join(script_dir,".."))
 
+sys.path.insert(0, os.path.join(script_dir,"../moore_curve"))
 from config import CONFIG
 from utils import *
 
@@ -66,7 +71,10 @@ VIT_CONFIG = {
     # d_model, num_layers etc. are inherited from CONFIG and stay identical.
 }
 # =============================================================================
-
+# Create a unique output path for each run
+CONFIG["output_dir"] = create_incremental_dir(VIT_CONFIG["output_dir"],prefix=CONFIG["test_name"])
+CONFIG["test_name"] = Path(CONFIG["output_dir"]).name
+CONFIG["num_patches"] = int((CONFIG["image_size"]/VIT_CONFIG["patch_size"])**2)
 
 # =============================================================================
 # ViT PATCH TOKENIZER
@@ -639,6 +647,7 @@ def main():
     print(f"  Plots:             {logger.plot_dir}")
     print("=" * 65 + "\n")
 
+    # Append Master Log
     log_experiment(
             filepath = CONFIG["master_log"],
             data = {

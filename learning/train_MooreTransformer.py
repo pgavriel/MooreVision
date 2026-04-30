@@ -14,6 +14,7 @@ Outputs (all written to CONFIG["output_dir"]):
 """
 
 import os
+os.environ["QT_QPA_PLATFORM"] = "offscreen"
 import sys
 import csv
 import time
@@ -51,13 +52,16 @@ from utils import *
 # CONFIG — all hyperparameters and settings in one place
 # =============================================================================
 from config import CONFIG
+# Create a unique output path for each run
+CONFIG["output_dir"] = create_incremental_dir(CONFIG["output_dir"],prefix=CONFIG["test_name"])
+CONFIG["test_name"] = Path(CONFIG["output_dir"]).name
 
 # --- Focus Curve Global Declaration --- 
 f = Focus(iter=CONFIG["curve_iter"],pos=[0,0],mode=CONFIG["curve_mode"],mem=CONFIG["batch_size"])
 f.set_size(CONFIG["image_size"])
 coords_tensor = torch.tensor(f.coords, dtype=torch.float32)  # [256, 2] # Compute this only once
 
-FIRST_BATCH = True
+PRINT_FIRST_N = 5
 STL10_CLASSES = ["airplane","bird","car","cat","deer","dog","horse","monkey","ship","truck"]
 
 
@@ -70,6 +74,7 @@ def extract_patches_and_bboxes(
     f: Focus,
     num_patches: int,
     image_size: int,
+    device
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Extract N patches from each image and return their representations
@@ -92,22 +97,24 @@ def extract_patches_and_bboxes(
         - w, h are the width and height of the patch
         - Example: a patch covering the full image → (0.5, 0.5, 1.0, 1.0)
     """
-    global coords_tensor, FIRST_BATCH
+    global coords_tensor, PRINT_FIRST_N
     B, C, H, W = images.shape
     BN = B * num_patches
 
     # 1. Sample and validate all states at once — fully vectorized, on CPU or GPU
-    valid_states = generate_validate_states_batched(BN,CONFIG["image_size"],f.walker.width,f.walker.step_size,f.min_size)
-    if FIRST_BATCH:
-        print(f"FIRST BATCH:\nUnique K_Sizes: {valid_states['k_size'].unique()}")
-        FIRST_BATCH = False
-
+    valid_states = generate_validate_states_batched(BN,CONFIG["image_size"],f.walker.width,f.walker.step_size,f.min_size,device)
+    if PRINT_FIRST_N > 0:
+        # print(f"FIRST BATCH:\nUnique K_Sizes: {valid_states['k_size'].unique()}")
+        print(f"RNG state sum: {torch.cuda.get_rng_state().sum().item()}")
+        print(f"[B{PRINT_FIRST_N}] Sizes: {valid_states['scale'][:5]}")
+        PRINT_FIRST_N = PRINT_FIRST_N - 1
     # 2. Transform curve coords for all BN patches at once
     #    coords [256, 2] × scale [BN] + pos [BN, 2] → [BN, 256, 2]
-    pos   = valid_states["pos"].float()      # [BN, 2]
-    scale = valid_states["scale"]            # [BN]
+    pos   = valid_states["pos"].float().to(device)      # [BN, 2]
+    scale = valid_states["scale"].to(device)            # [BN]
+    # print(f"Coords: {coords_tensor.device}    Scale: {scale.device}   Pos: {pos.device}")
     coords_scaled = (
-        coords_tensor[None, :, :] * scale[:, None, None]  # [BN, 256, 2]
+        coords_tensor.to(device)[None, :, :] * scale[:, None, None]  # [BN, 256, 2]
         + pos[:, None, :]                                 # broadcast pos
     )
     # 3. Normalize to [-1, 1] for grid_sample
@@ -183,6 +190,7 @@ def precompute_val_views(
                 f,
                 num_patches=CONFIG["num_patches"],
                 image_size=CONFIG["image_size"],
+                device=device
             )
             all_patches.append(patches.cpu())
             all_states.append(states.cpu())
@@ -402,9 +410,10 @@ def run_epoch(
     Run one full pass over the dataset.
     Returns (mean_loss, accuracy_percent).
     """
-    global f
+    global f, PRINT_FIRST_N
+    PRINT_FIRST_N = 5
     model.train() if is_train else model.eval()
-
+    print(f"[EPOCH {epoch} START] RNG state sum: {torch.cuda.get_rng_state().sum().item()}")
     total_loss    = 0.0
     total_correct = 0
     total_samples = 0
@@ -425,6 +434,7 @@ def run_epoch(
                 f,
                 num_patches=cfg["num_patches"],
                 image_size=cfg["image_size"],
+                device=device
             )
             patches = patches.to(device, non_blocking=True)
             states  = states.to(device,  non_blocking=True)
@@ -579,6 +589,7 @@ def main():
         "mps"   if torch.backends.mps.is_available() else
         "cpu"
     )
+    print(f"Using Device: {device}")
 
     # --- Output directories ---
     run_dir   = Path(cfg["output_dir"])
@@ -610,6 +621,10 @@ def main():
         combined, [n_train, n_val],
         generator=torch.Generator().manual_seed(42)
     )
+    # DEBUG: Check dataset label distributions:
+    # plot_class_distribution(train_dataset, label="STL-10 Train Split",  save_path=None, show=False)
+    # plot_class_distribution(val_dataset,   label="STL-10 Val Split",    save_path=None, show=False)
+    # sys.exit()
 
     train_loader = DataLoader(
         train_dataset,

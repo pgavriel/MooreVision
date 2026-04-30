@@ -162,7 +162,10 @@ class Focus:
             else:
                 avgcolor = image[y1,x1]
             # Assign average color to appropriate memory location
-            sample[i] = avgcolor
+            if isinstance(avgcolor, np.ndarray):
+                sample[i] = avgcolor
+            else:
+                sample[i] = avgcolor.detach().cpu().numpy()
 
             # Draw curve on the image
             if draw_on:
