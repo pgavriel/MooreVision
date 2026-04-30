@@ -354,6 +354,68 @@ def visualize_patch_samples2(
 
     STL10_CLASSES = ["airplane","bird","car","cat","deer","dog","horse","monkey","ship","truck"]
 
+    def save_confusion_matrix(
+        all_preds:   np.ndarray,
+        all_labels:  np.ndarray,
+        epoch:       int,
+        val_acc:     float,
+        class_names: list,
+        save_dir:    str,
+    ):
+        import matplotlib.pyplot as plt
+        from pathlib import Path
+
+        num_classes = len(class_names)
+        cm          = np.zeros((num_classes, num_classes), dtype=np.int64)
+        for pred, label in zip(all_preds, all_labels):
+            cm[label, pred] += 1
+
+        # Per-class accuracy
+        per_class_acc = {}
+        print(f"\n  Per-class accuracy (epoch {epoch}, val acc {val_acc:.2f}%):")
+        for i, name in enumerate(class_names):
+            total = cm[i].sum()
+            acc   = 100.0 * cm[i, i] / total if total > 0 else 0.0
+            per_class_acc[name] = acc
+            print(f"    {name:<12} {acc:5.1f}%  ({cm[i,i]}/{total})")
+
+        # Normalised confusion matrix for plotting
+        cm_norm = cm.astype(np.float32)
+        row_sums = cm_norm.sum(axis=1, keepdims=True)
+        cm_norm  = np.divide(cm_norm, row_sums, where=row_sums > 0)
+
+        fig, ax = plt.subplots(figsize=(max(8, num_classes), max(6, num_classes - 1)))
+        im = ax.imshow(cm_norm, interpolation="nearest", cmap="Blues", vmin=0, vmax=1)
+        plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+
+        ax.set_xticks(range(num_classes))
+        ax.set_yticks(range(num_classes))
+        ax.set_xticklabels(class_names, rotation=45, ha="right", fontsize=9)
+        ax.set_yticklabels(class_names, fontsize=9)
+        ax.set_xlabel("Predicted", fontsize=11)
+        ax.set_ylabel("True",      fontsize=11)
+        ax.set_title(
+            f"Confusion Matrix — Epoch {epoch}  (val acc {val_acc:.2f}%)",
+            fontsize=12, fontweight="bold", pad=12,
+        )
+
+        # Annotate cells with raw counts
+        thresh = 0.5
+        for i in range(num_classes):
+            for j in range(num_classes):
+                color = "white" if cm_norm[i, j] > thresh else "black"
+                ax.text(j, i, str(cm[i, j]), ha="center", va="center",
+                        fontsize=8, color=color)
+
+        plt.tight_layout()
+        save_path = Path(save_dir) / f"confusion_matrix_best_epoch{epoch:04d}.png"
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(save_path, dpi=130)
+        plt.close(fig)
+        print(f"  Saved confusion matrix → {save_path}")
+
+        return cm, per_class_acc
+
     def denormalize(tensor):
         img = tensor.cpu().numpy().transpose(1, 2, 0)
         img = np.clip(img * STD + MEAN, 0.0, 1.0)
@@ -384,7 +446,7 @@ def visualize_patch_samples2(
     for idx in indices:
         image_tensor, label = dataset[idx]
         label_name = STL10_CLASSES[label] if label < len(STL10_CLASSES) else str(label)
-
+        print(f"LABEL: {label_name}")
         img_hw   = denormalize(image_tensor)
         img_h, img_w = img_hw.shape[:2]
         img_size = min(img_h, img_w)
@@ -408,6 +470,7 @@ def visualize_patch_samples2(
         # --- Annotated original image ---
         img_annotated = img_hw.copy()
         for p in range(m_patches):
+            print(f"[State {p+1}] {states[p]}")
             cx   = states[p, 0] * img_w
             cy   = states[p, 1] * img_h
             size = states[p, 2] * img_size
