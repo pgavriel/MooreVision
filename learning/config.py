@@ -19,8 +19,8 @@ CONFIG = {
     # Fill in your patch extraction logic in `extract_patches_and_bboxes` below.
     "num_patches":        16,           # N patches sampled per image
     "patch_dim":          768,          # output dim of your patch encoder
-    "curve_iter":           4,          # Curve Iterations
-    "curve_mode":           0,          # [0 = Moore[i=4], 1 = Zigzag, 2 = ZIGZAG2[i=8], 3 = RxR[i=16]]
+    "curve_iter":           16,          # Curve Iterations
+    "curve_mode":           3,          # [0 = Moore[i=4], 1 = Zigzag, 2 = ZIGZAG2[i=8], 3 = RxR[i=16]]
 
     # Min/max patch size as a fraction of image_size.
     # e.g. 0.2 → smallest patch covers 20% of image width/height
@@ -58,5 +58,6 @@ CONFIG = {
 
     # --- Logging ---
     "print_every_n_steps": 10,          # print batch-level stats this often
+    "save_confusion": True
 }
 # =============================================================================

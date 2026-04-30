@@ -58,6 +58,8 @@ f.set_size(CONFIG["image_size"])
 coords_tensor = torch.tensor(f.coords, dtype=torch.float32)  # [256, 2] # Compute this only once
 
 FIRST_BATCH = True
+STL10_CLASSES = ["airplane","bird","car","cat","deer","dog","horse","monkey","ship","truck"]
+
 
 # =============================================================================
 # PATCH EXTRACTION — fill in your implementation here
@@ -146,31 +148,6 @@ def extract_patches_and_bboxes(
 
     # Final states tensor
     states = states.reshape(B, num_patches, 4)                  # [B, N, 4]
-
-    # OLD IMPLEMENTATION: (KEEP FOR NOW)
-    # all_patches = []
-    # all_states  = []
-
-    # for b in range(B):
-    #     img = images[b]
-    #     img_hwc = img.permute(1, 2, 0)
-    #     # print(f"img shape: {img_hwc.shape} , {type(img_hwc)}")
-    #     img_patches, img_states = f.sample_random_views(img_hwc,CONFIG["num_patches"])
-        
-    #     # Convert states: list of [4] → tensor [N, 4]
-    #     img_states_tensor = torch.tensor(img_states, dtype=torch.float32)
-
-    #     # Convert patches: list of (256, 3) numpy arrays → flatten → tensor [N, 768]
-    #     img_patches_tensor = torch.tensor(
-    #         np.stack(img_patches),          # [N, 256, 3]
-    #         dtype=torch.float32
-    #     ).flatten(start_dim=1)              # [N, 768]
-    #     # print("States min-max:",img_states_tensor.min(), img_states_tensor.max())
-    #     all_patches.append(img_patches_tensor)   # [N, patch_dim]
-    #     all_states.append(img_states_tensor)     # [N, 4]
-
-    # patches = torch.stack(all_patches)     # [B, N, patch_dim]
-    # states  = torch.stack(all_states)      # [B, N, 4]
 
     return patches, states
 
@@ -493,15 +470,22 @@ def run_epoch(
     return mean_loss, accuracy
 
 def run_val_epoch(
-    model:      nn.Module,
-    loader:     DataLoader,    # yields (patches, states, labels)
-    criterion:  nn.Module,
-    device:     torch.device,
-    cfg:        dict,
-) -> tuple[float, float]:
-
+    model:          nn.Module,
+    loader:         DataLoader,
+    criterion:      nn.Module,
+    device:         torch.device,
+    cfg:            dict,
+    collect_preds:  bool = False,
+) -> tuple[float, float, np.ndarray | None, np.ndarray | None]:
+    """
+    Returns (loss, accuracy, all_preds, all_labels).
+    all_preds and all_labels are only populated when collect_preds=True,
+    otherwise both are None (avoids the memory overhead every epoch).
+    """
     model.eval()
     total_loss, total_correct, total_samples = 0.0, 0, 0
+    all_preds  = [] if collect_preds else None
+    all_labels = [] if collect_preds else None
 
     with torch.no_grad():
         for step, (patches, states, labels) in enumerate(loader):
@@ -511,10 +495,15 @@ def run_val_epoch(
 
             logits  = model(patches, states)
             loss    = criterion(logits, labels)
+            preds   = logits.argmax(-1)
 
-            total_correct += (logits.argmax(-1) == labels).sum().item()
+            total_correct += (preds == labels).sum().item()
             total_loss    += loss.item() * labels.size(0)
             total_samples += labels.size(0)
+
+            if collect_preds:
+                all_preds.append(preds.cpu())
+                all_labels.append(labels.cpu())
 
             if (step + 1) % cfg["print_every_n_steps"] == 0:
                 print(
@@ -523,7 +512,11 @@ def run_val_epoch(
                     f"acc {100.*total_correct/total_samples:5.1f}%"
                 )
 
-    return total_loss / total_samples, 100. * total_correct / total_samples
+    if collect_preds:
+        all_preds  = torch.cat(all_preds).numpy()
+        all_labels = torch.cat(all_labels).numpy()
+
+    return total_loss / total_samples, 100. * total_correct / total_samples, all_preds, all_labels
 
 # =============================================================================
 # CHECKPOINTING
@@ -604,9 +597,9 @@ def main():
     val_dataset   = PatchDataset(cfg["data_dir"], split="test",  augment=False)
 
     # --- VISUALIZE DATASET SAMPLES:
-    # visualize_patch_samples2(train_dataset,f,8,16)
-    # visualize_patch_samples2(train_dataset,f,8,16)
-    # sys.exit()
+    visualize_patch_samples2(train_dataset,f,8,9)
+    visualize_patch_samples2(train_dataset,f,8,9)
+    sys.exit()
 
     # NOTE: THIS DEVIATES FROM THE 5k/8k split native to the dataset, after running experiments, maybe change it back for comparison
     # Re-split 10k/3k
@@ -708,8 +701,9 @@ def main():
 
         # Validate
         print("  [Val]")
-        val_loss, val_acc = run_val_epoch(
-            model, val_tensor_loader, criterion, device, cfg
+        val_loss, val_acc, _, _ = run_val_epoch(
+            model, val_tensor_loader, criterion, device, cfg,
+            collect_preds=False,
         )
 
         elapsed  = time.perf_counter() - t_start
@@ -718,11 +712,25 @@ def main():
 
         if is_best:
             best_val_acc = val_acc
-            best_epoch = epoch
+            best_epoch   = epoch
             save_checkpoint(
                 str(ckpt_dir / "best_model.pt"),
-                epoch, model, optimizer, scheduler, best_val_acc, cfg
+                epoch, model, optimizer, scheduler, best_val_acc, cfg,
             )
+            if cfg["save_confusion"]:
+                # Re-run val with prediction collection to get confusion matrix
+                print("  [New best — collecting predictions for confusion matrix]")
+                _, _, best_preds, best_labels = run_val_epoch(
+                    model, val_tensor_loader, criterion, device, cfg,
+                    collect_preds=True,
+                )
+                save_confusion_matrix(
+                    best_preds, best_labels,
+                    epoch        = epoch,
+                    val_acc      = val_acc,
+                    class_names  = STL10_CLASSES,
+                    save_dir     = str(Path(cfg["output_dir"]) / "plots"),
+                )
 
         # Periodic checkpoint
         if epoch % cfg["save_every_n_epochs"] == 0:
