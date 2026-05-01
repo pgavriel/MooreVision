@@ -79,7 +79,8 @@ class Walker:
         self.rectify()
         # print(self.xrange, self.yrange)
         # print(self.coords)
-        print("[L-Sys Walker Initiated]")
+        print(f"[L-Sys Walker Initiated]: i={self.iterations}, points = {len(self.coords)}")
+        # print(self.coords)
         # print(self)
 
     def __str__(self):

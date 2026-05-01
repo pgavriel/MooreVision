@@ -7,8 +7,8 @@ CONFIG = {
     "output_dir":           "./runs",
     "val_cache_path":       "./val_cache/rxr-n36-10k.pt",
     "master_log":           "./runs/master_log.csv",
-    "test_name":            "rng_test",
-    "test_note":            "Initial run - 10:3 split",
+    "test_name":            "confusion_test",
+    "test_note":            "testing confusion plot",
 
     # --- Dataset ---
     "dataset":            "stl10",      # only stl10 supported here
@@ -17,7 +17,7 @@ CONFIG = {
 
     # --- Patch sampling ---
     # Fill in your patch extraction logic in `extract_patches_and_bboxes` below.
-    "num_patches":        36,           # N patches sampled per image
+    "num_patches":        9,           # N patches sampled per image
     "patch_dim":          768,          # output dim of your patch encoder
     "curve_iter":           16,          # Curve Iterations
     "curve_mode":           3,          # [0 = Moore[i=4], 1 = Zigzag, 2 = ZIGZAG2[i=8], 3 = RxR[i=16]]

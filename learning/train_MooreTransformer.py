@@ -105,7 +105,7 @@ def extract_patches_and_bboxes(
     valid_states = generate_validate_states_batched(BN,CONFIG["image_size"],f.walker.width,f.walker.step_size,f.min_size,device)
     if PRINT_FIRST_N > 0:
         # print(f"FIRST BATCH:\nUnique K_Sizes: {valid_states['k_size'].unique()}")
-        print(f"RNG state sum: {torch.cuda.get_rng_state().sum().item()}")
+        # print(f"RNG state sum: {torch.cuda.get_rng_state().sum().item()}")
         print(f"[B{PRINT_FIRST_N}] Sizes: {valid_states['scale'][:5]}")
         PRINT_FIRST_N = PRINT_FIRST_N - 1
     # 2. Transform curve coords for all BN patches at once
@@ -413,7 +413,7 @@ def run_epoch(
     global f, PRINT_FIRST_N
     PRINT_FIRST_N = 5
     model.train() if is_train else model.eval()
-    print(f"[EPOCH {epoch} START] RNG state sum: {torch.cuda.get_rng_state().sum().item()}")
+    # print(f"[EPOCH {epoch} START] RNG state sum: {torch.cuda.get_rng_state().sum().item()}")
     total_loss    = 0.0
     total_correct = 0
     total_samples = 0
@@ -598,8 +598,8 @@ def main():
 
     # --- Focus Curve --- 
     coords_tensor = coords_tensor.to(device)
-    # example_states = generate_validate_states_batched(2500,CONFIG["image_size"],f.walker.width,f.walker.step_size,f.min_size)
-    # plot_state_debug(example_states,CONFIG["image_size"],None)
+    # example_states = generate_validate_states_batched(1000,CONFIG["image_size"],f.walker.width,f.walker.step_size,f.min_size,device)
+    # plot_state_debug(example_states,CONFIG["image_size"],"./samples.png")
     # sys.exit()
 
     # --- Datasets & loaders ---
@@ -608,9 +608,9 @@ def main():
     val_dataset   = PatchDataset(cfg["data_dir"], split="test",  augment=False)
 
     # --- VISUALIZE DATASET SAMPLES:
-    visualize_patch_samples2(train_dataset,f,8,9)
-    visualize_patch_samples2(train_dataset,f,8,9)
-    sys.exit()
+    # visualize_patch_samples2(train_dataset,f,8,9)
+    # visualize_patch_samples2(train_dataset,f,8,9)
+    # sys.exit()
 
     # NOTE: THIS DEVIATES FROM THE 5k/8k split native to the dataset, after running experiments, maybe change it back for comparison
     # Re-split 10k/3k

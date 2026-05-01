@@ -4,6 +4,69 @@ import csv
 import os
 from datetime import datetime
 from pathlib import Path
+import numpy as np
+
+def save_confusion_matrix(
+    all_preds:   np.ndarray,
+    all_labels:  np.ndarray,
+    epoch:       int,
+    val_acc:     float,
+    class_names: list,
+    save_dir:    str,
+):
+    import matplotlib.pyplot as plt
+    from pathlib import Path
+
+    num_classes = len(class_names)
+    cm          = np.zeros((num_classes, num_classes), dtype=np.int64)
+    for pred, label in zip(all_preds, all_labels):
+        cm[label, pred] += 1
+
+    # Per-class accuracy
+    per_class_acc = {}
+    print(f"\n  Per-class accuracy (epoch {epoch}, val acc {val_acc:.2f}%):")
+    for i, name in enumerate(class_names):
+        total = cm[i].sum()
+        acc   = 100.0 * cm[i, i] / total if total > 0 else 0.0
+        per_class_acc[name] = acc
+        print(f"    {name:<12} {acc:5.1f}%  ({cm[i,i]}/{total})")
+
+    # Normalised confusion matrix for plotting
+    cm_norm = cm.astype(np.float32)
+    row_sums = cm_norm.sum(axis=1, keepdims=True)
+    cm_norm  = np.divide(cm_norm, row_sums, where=row_sums > 0)
+
+    fig, ax = plt.subplots(figsize=(max(8, num_classes), max(6, num_classes - 1)))
+    im = ax.imshow(cm_norm, interpolation="nearest", cmap="Blues", vmin=0, vmax=1)
+    plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+
+    ax.set_xticks(range(num_classes))
+    ax.set_yticks(range(num_classes))
+    ax.set_xticklabels(class_names, rotation=45, ha="right", fontsize=9)
+    ax.set_yticklabels(class_names, fontsize=9)
+    ax.set_xlabel("Predicted", fontsize=11)
+    ax.set_ylabel("True",      fontsize=11)
+    ax.set_title(
+        f"Confusion Matrix — Epoch {epoch}  (val acc {val_acc:.2f}%)",
+        fontsize=12, fontweight="bold", pad=12,
+    )
+
+    # Annotate cells with raw counts
+    thresh = 0.5
+    for i in range(num_classes):
+        for j in range(num_classes):
+            color = "white" if cm_norm[i, j] > thresh else "black"
+            ax.text(j, i, str(cm[i, j]), ha="center", va="center",
+                    fontsize=8, color=color)
+
+    plt.tight_layout()
+    save_path = Path(save_dir) / f"confusion_matrix_best_epoch{epoch:04d}.png"
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(save_path, dpi=130)
+    plt.close(fig)
+    print(f"  Saved confusion matrix → {save_path}")
+
+    return cm, per_class_acc
 
 def create_incremental_dir(root, prefix="test", digits=3):
     os.makedirs(root, exist_ok=True)  # Ensure root exists
@@ -94,15 +157,21 @@ def plot_state_debug(valid_states: dict, image_size: int, save_path: str = None)
         scale  [BN]
         k_size [BN]
     """
+    import matplotlib
+    matplotlib.use("Agg")   # non-interactive, no Qt dependency
     import matplotlib.pyplot as plt
 
+    print(f"States keys: {valid_states.keys()}")
+    for k, v in valid_states.items():
+        print(f"{k}: {v[0]}")
+        N = len(v)
     pos    = valid_states["pos"].cpu().numpy()
     size   = valid_states["size"].cpu().numpy()
     scale  = valid_states["scale"].cpu().numpy()
     ksize  = valid_states["k_size"].cpu().numpy()
 
-    fig, axes = plt.subplots(1, 4, figsize=(18, 4))
-    fig.suptitle("Patch state distributions", fontsize=12, fontweight="bold")
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4))
+    fig.suptitle(f"Patch state distributions (N Samples = {N})", fontsize=12, fontweight="bold")
 
     axes[0].scatter(pos[:, 0], pos[:, 1], s=4, alpha=0.4, color="#378ADD")
     axes[0].set_xlim(0, image_size)
@@ -113,13 +182,14 @@ def plot_state_debug(valid_states: dict, image_size: int, save_path: str = None)
     axes[0].set_ylabel("y (px)")
     axes[0].grid(True, alpha=0.2)
 
-    for ax, vals, title, xlabel in zip(
+    for ax, vals, title, xlabel,bins in zip(
         axes[1:],
-        [size, scale, ksize],
-        ["size", "scale", "k_size"],
-        ["pixels", "scale factor", "kernel radius"]
+        [size,ksize],
+        ["size",  "k_size"],
+        ["pixels",  "kernel radius"],
+        [30,30]
     ):
-        ax.hist(vals, bins=30, color="#1D9E75", alpha=0.85, edgecolor="none")
+        ax.hist(vals, bins=bins, color="#1D9E75", alpha=0.85, edgecolor="none")
         ax.set_title(title)
         ax.set_xlabel(xlabel)
         ax.set_ylabel("count")
@@ -364,68 +434,6 @@ def visualize_patch_samples2(
     STD  = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
     STL10_CLASSES = ["airplane","bird","car","cat","deer","dog","horse","monkey","ship","truck"]
-
-    def save_confusion_matrix(
-        all_preds:   np.ndarray,
-        all_labels:  np.ndarray,
-        epoch:       int,
-        val_acc:     float,
-        class_names: list,
-        save_dir:    str,
-    ):
-        import matplotlib.pyplot as plt
-        from pathlib import Path
-
-        num_classes = len(class_names)
-        cm          = np.zeros((num_classes, num_classes), dtype=np.int64)
-        for pred, label in zip(all_preds, all_labels):
-            cm[label, pred] += 1
-
-        # Per-class accuracy
-        per_class_acc = {}
-        print(f"\n  Per-class accuracy (epoch {epoch}, val acc {val_acc:.2f}%):")
-        for i, name in enumerate(class_names):
-            total = cm[i].sum()
-            acc   = 100.0 * cm[i, i] / total if total > 0 else 0.0
-            per_class_acc[name] = acc
-            print(f"    {name:<12} {acc:5.1f}%  ({cm[i,i]}/{total})")
-
-        # Normalised confusion matrix for plotting
-        cm_norm = cm.astype(np.float32)
-        row_sums = cm_norm.sum(axis=1, keepdims=True)
-        cm_norm  = np.divide(cm_norm, row_sums, where=row_sums > 0)
-
-        fig, ax = plt.subplots(figsize=(max(8, num_classes), max(6, num_classes - 1)))
-        im = ax.imshow(cm_norm, interpolation="nearest", cmap="Blues", vmin=0, vmax=1)
-        plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-
-        ax.set_xticks(range(num_classes))
-        ax.set_yticks(range(num_classes))
-        ax.set_xticklabels(class_names, rotation=45, ha="right", fontsize=9)
-        ax.set_yticklabels(class_names, fontsize=9)
-        ax.set_xlabel("Predicted", fontsize=11)
-        ax.set_ylabel("True",      fontsize=11)
-        ax.set_title(
-            f"Confusion Matrix — Epoch {epoch}  (val acc {val_acc:.2f}%)",
-            fontsize=12, fontweight="bold", pad=12,
-        )
-
-        # Annotate cells with raw counts
-        thresh = 0.5
-        for i in range(num_classes):
-            for j in range(num_classes):
-                color = "white" if cm_norm[i, j] > thresh else "black"
-                ax.text(j, i, str(cm[i, j]), ha="center", va="center",
-                        fontsize=8, color=color)
-
-        plt.tight_layout()
-        save_path = Path(save_dir) / f"confusion_matrix_best_epoch{epoch:04d}.png"
-        save_path.parent.mkdir(parents=True, exist_ok=True)
-        plt.savefig(save_path, dpi=130)
-        plt.close(fig)
-        print(f"  Saved confusion matrix → {save_path}")
-
-        return cm, per_class_acc
 
     def denormalize(tensor):
         img = tensor.cpu().numpy().transpose(1, 2, 0)
