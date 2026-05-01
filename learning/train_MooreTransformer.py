@@ -97,6 +97,8 @@ def extract_patches_and_bboxes(
     """
     global coords_tensor, PRINT_FIRST_N
     B, C, H, W = images.shape
+    ## TESTING RANDOM PATCH NUMBER PER BATCH
+    # num_patches = torch.randint(2,37,(1,),device=device).item()
     BN = B * num_patches
 
     # 1. Sample and validate all states at once — fully vectorized, on CPU or GPU
